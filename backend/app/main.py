@@ -6,6 +6,7 @@ from app.api.client_admin import router as client_admin_router
 from app.api.employee import router as employee_router
 from app.api.models import router as models_router
 from app.services.seed_service import create_super_admin
+from app.api.token import router as token_router
 
 app = FastAPI(
     title="Binjwa AI Cost Platform",
@@ -18,6 +19,7 @@ app.include_router(super_admin_router)
 app.include_router(client_admin_router)
 app.include_router(employee_router)
 app.include_router(models_router)
+app.include_router(token_router)
 
 
 # Startup Event
