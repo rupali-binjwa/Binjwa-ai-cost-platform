@@ -1,0 +1,11 @@
+# Placeholder
+fastapi
+uvicorn
+pymongo
+python-dotenv
+requests
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+pydantic
+email-validator

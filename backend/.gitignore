@@ -1,0 +1,9 @@
+# Placeholder
+venv/
+__pycache__/
+.env
+*.pyc
+*.pyo
+*.pyd
+.idea/
+.vscode/

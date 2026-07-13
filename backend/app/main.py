@@ -1,0 +1,42 @@
+from fastapi import FastAPI
+
+from app.api.auth import router as auth_router
+from app.api.super_admin import router as super_admin_router
+from app.api.client_admin import router as client_admin_router
+from app.api.employee import router as employee_router
+from app.api.models import router as models_router
+from app.services.seed_service import create_super_admin
+
+app = FastAPI(
+    title="Binjwa AI Cost Platform",
+    version="1.0.0"
+)
+
+# Routers
+app.include_router(auth_router)
+app.include_router(super_admin_router)
+app.include_router(client_admin_router)
+app.include_router(employee_router)
+app.include_router(models_router)
+
+
+# Startup Event
+@app.on_event("startup")
+def startup():
+    create_super_admin()
+
+
+# Home API
+@app.get("/")
+def home():
+    return {
+        "message": "Welcome to Binjwa AI Cost Platform 🚀"
+    }
+
+
+# Health API
+@app.get("/health")
+def health():
+    return {
+        "status": "Running Successfully"
+    }
