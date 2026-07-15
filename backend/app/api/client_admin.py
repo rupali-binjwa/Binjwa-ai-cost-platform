@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from bson import ObjectId
 
 from app.schemas.client_admin import (
@@ -10,6 +10,8 @@ from app.database.collections import (
     organizations_collection,
     client_admins_collection
 )
+from app.core.security import hash_password
+from app.api.dependencies import get_current_super_admin, get_current_client_admin
 
 router = APIRouter(
     prefix="/client-admin",
@@ -21,7 +23,7 @@ router = APIRouter(
 # Create Client Admin
 # ==========================
 
-@router.post("/create")
+@router.post("/create", dependencies=[Depends(get_current_super_admin)])
 def create_client_admin(data: ClientAdminCreate):
 
     organization = organizations_collection.find_one(
@@ -49,7 +51,7 @@ def create_client_admin(data: ClientAdminCreate):
         "name": data.name,
         "email": data.email,
         "phone": data.phone,
-        "password": data.password,
+        "password": hash_password(data.password),
         "role": "client_admin",
         "is_active": True
     }
@@ -66,7 +68,7 @@ def create_client_admin(data: ClientAdminCreate):
 # Get All Client Admins
 # ==========================
 
-@router.get("/all")
+@router.get("/all", dependencies=[Depends(get_current_super_admin)])
 def get_all_client_admins():
 
     client_admins = list(client_admins_collection.find())
@@ -84,7 +86,7 @@ def get_all_client_admins():
 # Get Client Admin By ID
 # ==========================
 
-@router.get("/{client_admin_id}")
+@router.get("/{client_admin_id}", dependencies=[Depends(get_current_super_admin)])
 def get_client_admin(client_admin_id: str):
 
     client_admin = client_admins_collection.find_one(
@@ -106,7 +108,7 @@ def get_client_admin(client_admin_id: str):
 # Update Client Admin
 # ==========================
 
-@router.put("/{client_admin_id}")
+@router.put("/{client_admin_id}", dependencies=[Depends(get_current_super_admin)])
 def update_client_admin(
     client_admin_id: str,
     data: ClientAdminUpdate
@@ -129,7 +131,7 @@ def update_client_admin(
                 "name": data.name,
                 "email": data.email,
                 "phone": data.phone,
-                "password": data.password,
+                "password": hash_password(data.password) if data.password else client_admin.get("password"),
                 "is_active": data.is_active
             }
         }
@@ -138,7 +140,8 @@ def update_client_admin(
     return {
         "message": "Client Admin Updated Successfully"
     }
-@router.delete("/{client_admin_id}")
+
+@router.delete("/{client_admin_id}", dependencies=[Depends(get_current_super_admin)])
 def delete_client_admin(client_admin_id: str):
 
     client_admin = client_admins_collection.find_one(

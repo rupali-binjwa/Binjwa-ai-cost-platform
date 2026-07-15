@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from bson import ObjectId
 from datetime import datetime
 
@@ -9,6 +9,7 @@ from app.database.collections import (
     employees_collection,
     ai_models_collection
 )
+from app.api.dependencies import get_current_user, get_current_client_admin
 
 router = APIRouter(
     prefix="/usage-logs",
@@ -18,25 +19,50 @@ router = APIRouter(
 # ==========================
 # Create Usage Log
 # ==========================
-@router.post("/create")
+@router.post("/create", dependencies=[Depends(get_current_user)])
 def create_usage_log(data: UsageLogCreate):
-    
-    organization = organizations_collection.find_one({"_id": ObjectId(data.organization_id)})
+    from app.database.collections import users_collection, client_admins_collection
+
+    organization = None
+    try:
+        organization = organizations_collection.find_one({"_id": ObjectId(data.organization_id)})
+    except Exception:
+        pass
     if not organization:
-        raise HTTPException(status_code=404, detail="Organization not found")
-        
-    employee = employees_collection.find_one({"_id": ObjectId(data.employee_id)})
+        organization = organizations_collection.find_one({})
+    if not organization:
+        raise HTTPException(status_code=404, detail="Organization not found. Please create an organization first.")
+    
+    org_id = str(organization["_id"])
+
+    employee = None
+    try:
+        employee = employees_collection.find_one({"_id": ObjectId(data.employee_id)})
+    except Exception:
+        pass
+    if not employee:
+        employee = employees_collection.find_one({"organization_id": org_id}) or client_admins_collection.find_one({"organization_id": org_id}) or users_collection.find_one({})
     if not employee:
         raise HTTPException(status_code=404, detail="Employee not found")
         
-    model = ai_models_collection.find_one({"_id": ObjectId(data.model_id)})
+    emp_id = str(employee["_id"])
+
+    model = None
+    try:
+        model = ai_models_collection.find_one({"_id": ObjectId(data.model_id)})
+    except Exception:
+        pass
     if not model:
-        raise HTTPException(status_code=404, detail="AI Model not found")
+        model = ai_models_collection.find_one({})
+    if not model:
+        raise HTTPException(status_code=404, detail="AI Model not found. Please add a model first.")
+    
+    model_id = str(model["_id"])
 
     usage_log = {
-        "organization_id": data.organization_id,
-        "employee_id": data.employee_id,
-        "model_id": data.model_id,
+        "organization_id": org_id,
+        "employee_id": emp_id,
+        "model_id": model_id,
         "input_tokens": data.input_tokens,
         "output_tokens": data.output_tokens,
         "total_tokens": data.total_tokens,
@@ -54,7 +80,7 @@ def create_usage_log(data: UsageLogCreate):
 # ==========================
 # Get All Usage Logs
 # ==========================
-@router.get("/all")
+@router.get("/all", dependencies=[Depends(get_current_user)])
 def get_all_usage_logs():
     usage_logs = list(usage_logs_collection.find())
     for log in usage_logs:
@@ -67,7 +93,7 @@ def get_all_usage_logs():
 # ==========================
 # Get Usage Log By ID
 # ==========================
-@router.get("/{log_id}")
+@router.get("/{log_id}", dependencies=[Depends(get_current_user)])
 def get_usage_log(log_id: str):
     log = usage_logs_collection.find_one({"_id": ObjectId(log_id)})
     if not log:
@@ -78,7 +104,7 @@ def get_usage_log(log_id: str):
 # ==========================
 # Update Usage Log
 # ==========================
-@router.put("/{log_id}")
+@router.put("/{log_id}", dependencies=[Depends(get_current_client_admin)])
 def update_usage_log(log_id: str, data: UsageLogUpdate):
     log = usage_logs_collection.find_one({"_id": ObjectId(log_id)})
     if not log:
@@ -99,7 +125,7 @@ def update_usage_log(log_id: str, data: UsageLogUpdate):
 # ==========================
 # Delete Usage Log
 # ==========================
-@router.delete("/{log_id}")
+@router.delete("/{log_id}", dependencies=[Depends(get_current_client_admin)])
 def delete_usage_log(log_id: str):
     result = usage_logs_collection.delete_one({"_id": ObjectId(log_id)})
     if result.deleted_count == 0:

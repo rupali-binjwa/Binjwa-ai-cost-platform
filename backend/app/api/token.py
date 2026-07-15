@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from bson import ObjectId
 
 from app.schemas.token import (
@@ -11,6 +11,7 @@ from app.database.collections import (
     organizations_collection,
     tokens_collection
 )
+from app.api.dependencies import get_current_user, get_current_super_admin
 
 router = APIRouter(
     prefix="/tokens",
@@ -19,7 +20,7 @@ router = APIRouter(
 
 
 # Create Token
-@router.post("/create")
+@router.post("/create", dependencies=[Depends(get_current_super_admin)])
 def create_token(data: TokenCreate):
 
     model = ai_models_collection.find_one(
@@ -60,7 +61,7 @@ def create_token(data: TokenCreate):
 
 
 # Get All Tokens
-@router.get("/all")
+@router.get("/all", dependencies=[Depends(get_current_user)])
 def get_all_tokens():
 
     tokens = list(tokens_collection.find())
@@ -75,7 +76,7 @@ def get_all_tokens():
 
 
 # Get Single Token
-@router.get("/{token_id}")
+@router.get("/{token_id}", dependencies=[Depends(get_current_user)])
 def get_token(token_id: str):
 
     token = tokens_collection.find_one(
@@ -94,7 +95,7 @@ def get_token(token_id: str):
 
 
 # Update Token
-@router.put("/{token_id}")
+@router.put("/{token_id}", dependencies=[Depends(get_current_super_admin)])
 def update_token(
     token_id: str,
     data: TokenCreate
@@ -126,7 +127,7 @@ def update_token(
 
 
 # Delete Token
-@router.delete("/{token_id}")
+@router.delete("/{token_id}", dependencies=[Depends(get_current_super_admin)])
 def delete_token(token_id: str):
 
     result = tokens_collection.delete_one(
