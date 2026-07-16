@@ -33,8 +33,8 @@ def create_organization(data: OrganizationCreate):
         "company_email": clean_email,
         "company_phone": data.company_phone,
         "address": data.address,
-        "total_tokens": 1000000,
-        "available_tokens": 1000000,
+        "total_tokens": 0,
+        "available_tokens": 0,
         "status": True
     }
 
@@ -49,7 +49,7 @@ def create_organization(data: OrganizationCreate):
         "name": f"{data.company_name.strip()} Admin",
         "email": clean_email,
         "phone": data.company_phone,
-        "password": hash_password("Admin@123"),
+        "password": "",
         "role": "client_admin",
         "is_active": True
     }
@@ -135,3 +135,53 @@ def delete_organization(organization_id: str):
     return {
         "message": "Organization Deleted Successfully"
     }
+@router.get("/wallets", dependencies=[Depends(get_current_super_admin)])
+def get_wallets():
+    from app.database.collections import platform_wallets_collection
+    wallets = list(platform_wallets_collection.find({}, {"_id": 0}))
+    return wallets
+
+
+@router.get("/plan-requests")
+def get_plan_requests(current_user: dict = Depends(get_current_super_admin)):
+    from app.database.collections import plan_requests_collection
+    reqs = list(plan_requests_collection.find({"status": "pending"}).sort("created_at", -1))
+    for r in reqs:
+        r["_id"] = str(r["_id"])
+        if "organization_id" in r:
+            r["organization_id"] = str(r["organization_id"])
+    return reqs
+
+@router.post("/approve-plan/{request_id}")
+def approve_plan(request_id: str, current_user: dict = Depends(get_current_super_admin)):
+    from app.database.collections import plan_requests_collection, organizations_collection, platform_wallets_collection
+    
+    req = plan_requests_collection.find_one({"_id": ObjectId(request_id)})
+    if not req:
+        raise HTTPException(status_code=404, detail="Request not found")
+        
+    org_id = req["organization_id"]
+    price = req["plan_price"]
+    
+    # 1. Update Organization Budget
+    organizations_collection.update_one(
+        {"_id": ObjectId(org_id)},
+        {"$inc": {"total_tokens": price, "available_tokens": price}}
+    )
+    
+    # 2. Mark request approved
+    plan_requests_collection.update_one(
+        {"_id": ObjectId(request_id)},
+        {"$set": {"status": "approved"}}
+    )
+    
+    # 3. (Phase 3 logic) Deduct from Super Admin wallets?
+    # We will simply pull proportionately or from the largest wallet to simulate deduction
+    largest_wallet = platform_wallets_collection.find_one({}, sort=[("balance", -1)])
+    if largest_wallet:
+        platform_wallets_collection.update_one(
+            {"_id": largest_wallet["_id"]},
+            {"$inc": {"balance": -price}}
+        )
+        
+    return {"message": "Plan approved and wallet funded!"}

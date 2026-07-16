@@ -46,22 +46,7 @@ def login(user: LoginRequest):
         db_user = employees_collection.find_one(email_regex)
 
     # 4. Check if email belongs to an Organization directly (auto-recover or create client_admin)
-    if not db_user:
-        org_by_email = organizations_collection.find_one({"company_email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}})
-        if org_by_email:
-            org_id_str = str(org_by_email["_id"])
-            # Create or return client admin account for this organization
-            new_admin = {
-                "organization_id": org_id_str,
-                "name": f"{org_by_email.get('company_name', 'Client')} Admin",
-                "email": email,
-                "phone": org_by_email.get("company_phone", "+91 9999999999"),
-                "password": hash_password(user.password if user.password else "Admin@123"),
-                "role": "client_admin",
-                "is_active": True
-            }
-            client_admins_collection.insert_one(new_admin)
-            db_user = new_admin
+    
 
     if not db_user:
         raise HTTPException(
@@ -70,6 +55,9 @@ def login(user: LoginRequest):
         )
 
     stored_password = db_user.get("password", "")
+    if stored_password == "":
+        raise HTTPException(status_code=403, detail="SETUP_REQUIRED")
+
     if not safe_verify_password(user.password, stored_password):
         # If password check fails but user is logging into a newly created org or demo, let's check
         raise HTTPException(
@@ -107,3 +95,39 @@ def login(user: LoginRequest):
         "name": db_user.get("name", db_user["email"]),
         "organization_id": org_id
     }
+from pydantic import BaseModel
+class SetupPasswordRequest(BaseModel):
+    email: str
+    password: str
+
+@router.post("/setup-password")
+def setup_password(data: SetupPasswordRequest):
+    import re
+    from app.database.collections import client_admins_collection, employees_collection, users_collection
+    from app.core.security import hash_password
+
+    email = data.email.strip()
+    email_regex = {"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}}
+
+    # Check Client Admins
+    db_user = client_admins_collection.find_one(email_regex)
+    collection_used = client_admins_collection
+
+    if not db_user:
+        db_user = employees_collection.find_one(email_regex)
+        collection_used = employees_collection
+
+    if not db_user:
+        db_user = users_collection.find_one(email_regex)
+        collection_used = users_collection
+
+    if not db_user:
+        raise HTTPException(status_code=404, detail="Email not found. You must be invited by the Super Admin first.")
+
+    if db_user.get("password") != "":
+        raise HTTPException(status_code=400, detail="Password already setup. Please login.")
+
+    hashed = hash_password(data.password)
+    collection_used.update_one({"_id": db_user["_id"]}, {"$set": {"password": hashed}})
+
+    return {"message": "Password setup successfully. You can now login."}

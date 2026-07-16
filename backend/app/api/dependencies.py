@@ -10,15 +10,14 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
-    fallback_user = {
-        "_id": "60d5ecb8b5c9c62b3c7c4b63",
-        "email": "admin@binjwa.ai",
-        "role": "super_admin",
-        "name": "Binjwa Enterprise Admin"
-    }
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
     if not token:
-        return fallback_user
+        raise credentials_exception
 
     try:
         payload = jwt.decode(
@@ -30,16 +29,16 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         email: str = payload.get("email")
         role: str = payload.get("role")
         if user_id is None or email is None:
-            return fallback_user
+            raise credentials_exception
     except JWTError:
-        return fallback_user
+        raise credentials_exception
 
     # Find the user in appropriate collection based on role
     db_user = None
     try:
         obj_id = ObjectId(user_id)
     except Exception:
-        return fallback_user
+        raise credentials_exception
 
     if role == "super_admin":
         db_user = users_collection.find_one({"_id": obj_id})

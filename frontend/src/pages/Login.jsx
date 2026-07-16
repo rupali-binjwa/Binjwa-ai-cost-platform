@@ -16,6 +16,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+  const [isSetupMode, setIsSetupMode] = useState(false);
   const navigate = useNavigate();
 
   const handleTabChange = (role) => {
@@ -30,30 +31,47 @@ export default function Login() {
     }
   };
 
-  const handleLogin = async (e) => {
+  
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const res = await authAPI.login(email, password);
-      localStorage.setItem('access_token', res.access_token);
-      localStorage.setItem('user_role', res.role);
-      localStorage.setItem('user_id', res.user_id);
-      localStorage.setItem('user_name', res.name || email);
-      if (res.organization_id) {
-        localStorage.setItem('organization_id', res.organization_id);
+      if (isSetupMode) {
+        await authAPI.setupPassword(email, password);
+        setSuccess(true);
+        setTimeout(() => {
+          setIsSetupMode(false);
+          setSuccess(false);
+          setPassword('');
+          setError('Password setup successful! You can now login.');
+        }, 1500);
       } else {
-        localStorage.removeItem('organization_id');
-      }
+        const res = await authAPI.login(email, password);
+        localStorage.setItem('access_token', res.access_token);
+        localStorage.setItem('user_role', res.role);
+        localStorage.setItem('user_id', res.user_id);
+        localStorage.setItem('user_name', res.name || email);
+        if (res.organization_id) {
+          localStorage.setItem('organization_id', res.organization_id);
+        } else {
+          localStorage.removeItem('organization_id');
+        }
 
-      setSuccess(true);
-      setTimeout(() => {
-        if (res.role === 'super_admin') navigate('/super-admin');
-        else if (res.role === 'client_admin') navigate('/client-admin');
-        else navigate('/employee');
-      }, 600);
+        setSuccess(true);
+        setTimeout(() => {
+          if (res.role === 'super_admin') navigate('/super-admin');
+          else if (res.role === 'client_admin') navigate('/client-admin');
+          else navigate('/employee');
+        }, 600);
+      }
     } catch (err) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      if (err.message === 'SETUP_REQUIRED') {
+        setError('You must setup your password first.');
+        setIsSetupMode(true);
+      } else {
+        setError(err.message || (isSetupMode ? 'Setup failed.' : 'Login failed. Please check your credentials.'));
+      }
     } finally {
       setLoading(false);
     }
@@ -61,25 +79,25 @@ export default function Login() {
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '85vh' }}>
-      <div className="card" style={{ width: '100%', maxWidth: '480px', padding: '2.5rem', borderRadius: '24px', background: 'rgba(30, 33, 48, 0.85)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255, 255, 255, 0.15)', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)' }}>
+      <div className="card" style={{ width: '100%', maxWidth: '480px', padding: '2.5rem', borderRadius: '24px', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', boxShadow: 'var(--shadow-lg)' }}>
         
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, var(--primary), var(--accent))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(99, 102, 241, 0.4)' }}>
             <Zap size={28} />
           </div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'white', letterSpacing: '-0.02em' }}>Binjwa AI Portal</h2>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em' }}>{isSetupMode ? "Setup Account" : "Welcome Back"}</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>Select your role portal and authenticate to continue</p>
         </div>
 
         {/* Role Portal Tabs */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', background: 'rgba(0,0,0,0.3)', padding: '6px', borderRadius: '12px', marginBottom: '1.75rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', background: 'rgba(15, 23, 42, 0.05)', padding: '6px', borderRadius: '12px', marginBottom: '1.75rem' }}>
           <button 
             type="button"
             onClick={() => handleTabChange('super_admin')}
             style={{ 
               padding: '0.6rem 0.4rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
               background: activeTab === 'super_admin' ? 'var(--primary)' : 'transparent',
-              color: activeTab === 'super_admin' ? 'white' : 'var(--text-muted)',
+              color: activeTab === 'super_admin' ? 'white' : 'var(--text-main)',
               transition: 'all 0.2s'
             }}
           >
@@ -91,7 +109,7 @@ export default function Login() {
             style={{ 
               padding: '0.6rem 0.4rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
               background: activeTab === 'client_admin' ? 'var(--accent)' : 'transparent',
-              color: activeTab === 'client_admin' ? 'white' : 'var(--text-muted)',
+              color: activeTab === 'client_admin' ? 'white' : 'var(--text-main)',
               transition: 'all 0.2s'
             }}
           >
@@ -103,7 +121,7 @@ export default function Login() {
             style={{ 
               padding: '0.6rem 0.4rem', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
               background: activeTab === 'employee' ? 'var(--success)' : 'transparent',
-              color: activeTab === 'employee' ? 'white' : 'var(--text-muted)',
+              color: activeTab === 'employee' ? 'white' : 'var(--text-main)',
               transition: 'all 0.2s'
             }}
           >
@@ -112,18 +130,18 @@ export default function Login() {
         </div>
 
         {error && (
-          <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: 'var(--danger)', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <AlertCircle size={18} /> {error}
           </div>
         )}
 
         {success && (
-          <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#6ee7b7', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.4)', color: 'var(--success)', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <CheckCircle2 size={18} /> Authentication successful! Redirecting...
           </div>
         )}
 
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label className="label">Portal Email Address</label>
             <input 
@@ -152,9 +170,9 @@ export default function Login() {
             type="submit" 
             className="btn" 
             style={{ width: '100%', padding: '1rem', fontSize: '1.05rem', 
-              background: activeTab === 'super_admin' ? 'linear-gradient(135deg, var(--primary), #4f46e5)' :
-                          activeTab === 'client_admin' ? 'linear-gradient(135deg, var(--accent), #db2777)' :
-                          'linear-gradient(135deg, var(--success), #059669)'
+              background: activeTab === 'super_admin' ? 'var(--primary)' :
+                          activeTab === 'client_admin' ? 'var(--accent)' :
+                          'var(--success)'
             }} 
             disabled={loading || success}
           >
@@ -162,7 +180,7 @@ export default function Login() {
           </button>
         </form>
 
-        <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+        <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'rgba(15, 23, 42, 0.05)', borderRadius: '10px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
           <strong>Default Seed Credentials:</strong><br />
           Super Admin: <code>admin@binjwa.com</code> / <code>Admin@123</code><br />
           Client Admin: <code>clientadmin@binjwa.com</code> / <code>Admin@123</code><br />

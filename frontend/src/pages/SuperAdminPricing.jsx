@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { superAdminAPI, clientAdminAPI, employeeAPI, modelsAPI, recommendationAPI } from '../services/api';
 import { Building2, Users, Database, TrendingUp, CheckCircle, Code, ShieldCheck, Activity, Plus, RefreshCw, Terminal, PhoneCall, MessageSquare } from 'lucide-react';
 
-export default function ClientAdminDashboard() {
+export default function SuperAdminPricing() {
   const [organizations, setOrganizations] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [models, setModels] = useState([]);
@@ -39,7 +39,6 @@ export default function ClientAdminDashboard() {
 
   // Modal for new employee
   const [showEmpModal, setShowEmpModal] = useState(false);
-  const [showPlanModal, setShowPlanModal] = useState(false);
   const [empForm, setEmpForm] = useState({ name: '', email: '', phone: '', password: 'Password@123' });
   const [msg, setMsg] = useState({ type: '', text: '' });
 
@@ -167,125 +166,63 @@ export default function ClientAdminDashboard() {
     fetchVendorData();
   }, [monthlyInteractions, avgDurationMinutes, compInputTokens, compOutputTokens]);
 
-
-  const [dashboardData, setDashboardData] = useState(null);
-  const [planStatus, setPlanStatus] = useState('none');
-  const [pendingPlanName, setPendingPlanName] = useState('');
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
   const fetchData = async () => {
     setLoading(true);
     setMsg({ type: '', text: '' });
     try {
-      const [dashRes, planRes, empsRes, modelsRes] = await Promise.all([
-        clientAdminAPI.getDashboard().catch(() => null),
-        clientAdminAPI.getPlanRequest().catch(() => ({ status: 'none' })),
+      const [orgsRes, empsRes, modelsRes] = await Promise.all([
+        superAdminAPI.getOrganizations().catch(() => ([])),
         employeeAPI.getEmployees().catch(() => ({ employees: [] })),
         modelsAPI.getAllModels().catch(() => ({ models: [] }))
       ]);
 
-      if (dashRes) setDashboardData(dashRes);
+      const orgList = Array.isArray(orgsRes) ? orgsRes : [];
+      setOrganizations(orgList);
       
-      setPlanStatus(planRes.status);
-      if (planRes.status === 'pending') {
-        setPendingPlanName(planRes.plan_name);
-      }
+      const empList = empsRes && empsRes.employees ? empsRes.employees : [];
+      setEmployees(empList);
 
-      setEmployees(empsRes && empsRes.employees ? empsRes.employees : []);
-      setModels(modelsRes && modelsRes.models ? modelsRes.models : []);
-      
-      // Auto-analyze telemetry
-      if (dashRes && dashRes.organization) {
-        recommendationAPI.autoAnalyze(dashRes.organization._id)
-          .then(res => setTelemetry(res))
-          .catch(e => console.error("Telemetry error:", e));
-      }
+      const modelList = modelsRes && modelsRes.models ? modelsRes.models : [];
+      setModels(modelList);
 
+      // Fetch Automated Telemetry & Cost Analysis
+      const currentOrg = orgList.find(o => o._id === storedOrgId) || orgList[0];
+      const orgIdToUse = currentOrg ? currentOrg._id : 'default';
+      const telemRes = await recommendationAPI.autoAnalyze(orgIdToUse).catch(() => null);
+      setTelemetry(telemRes);
     } catch (err) {
-      console.error('Fetch data error:', err);
+      console.error('Safe fallback warning:', err);
+      setOrganizations([]);
+      setEmployees([]);
+      setModels([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRequestPlan = async (name, price) => {
-    try {
-      await clientAdminAPI.requestPlan(name, price);
-      setPlanStatus('pending');
-      setPendingPlanName(name);
-      alert("Plan requested successfully!");
-    } catch (err) {
-      alert("Failed to request plan: " + err.message);
-    }
-  };
-
-  if (planStatus === 'pending') {
-    return (
-      <div className="layout">
-        <div className="main-content" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', paddingLeft: 0 }}>
-           <div className="card" style={{ textAlign: 'center', padding: '3rem', maxWidth: '500px', margin: 'auto' }}>
-              <h2 style={{ color: 'var(--warning)', marginBottom: '1rem' }}>Plan Request Pending</h2>
-              <p style={{ color: 'var(--text-muted)' }}>You have requested the <strong>{pendingPlanName}</strong>. Please wait for the Super Admin to approve your budget allocation.</p>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // If budget is 0 and no plan is pending, force them to select a plan
-  if (!loading && dashboardData && dashboardData.available_tokens === 0 && planStatus === 'none') {
-    return (
-      <div className="layout">
-        <div className="main-content" style={{ padding: '2rem', paddingLeft: '2rem', width: '100%' }}>
-           <h1 style={{ fontSize: '2rem', marginBottom: '2rem', textAlign: 'center' }}>Select a Subscription Plan</h1>
-           <div className="dashboard-grid">
-              <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-                 <h3>Starter Setup</h3>
-                 <h2 style={{ fontSize: '2.5rem', margin: '1rem 0', color: 'var(--primary)' }}>$500</h2>
-                 <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Perfect for initial testing and small campaigns.</p>
-                 <button className="btn" onClick={() => handleRequestPlan('Starter Setup', 500)}>Request Plan</button>
-              </div>
-              <div className="card" style={{ textAlign: 'center', padding: '2rem', border: '2px solid var(--accent)' }}>
-                 <h3>Professional</h3>
-                 <h2 style={{ fontSize: '2.5rem', margin: '1rem 0', color: 'var(--accent)' }}>$1,500</h2>
-                 <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>Best for growing call centers and live deployments.</p>
-                 <button className="btn" onClick={() => handleRequestPlan('Professional', 1500)}>Request Plan</button>
-              </div>
-              <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-                 <h3>Enterprise Scale</h3>
-                 <h2 style={{ fontSize: '2.5rem', margin: '1rem 0', color: 'var(--success)' }}>$5,000</h2>
-                 <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>High-volume tier with priority routing.</p>
-                 <button className="btn" onClick={() => handleRequestPlan('Enterprise Scale', 5000)}>Request Plan</button>
-              </div>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleAddEmployee = async (e) => {
     e.preventDefault();
     setMsg({ type: '', text: '' });
-    
-    if (!dashboardData || !dashboardData.organization) {
+    const currentOrg = organizations.find(o => o._id === storedOrgId) || organizations[0];
+    if (!currentOrg) {
       setMsg({ type: 'error', text: 'No organization available to attach employee.' });
       return;
     }
 
     try {
       await employeeAPI.createEmployee({
-        organization_id: dashboardData.organization._id,
-        client_admin_id: dashboardData.organization._id, // Fallback
+        organization_id: currentOrg._id,
+        client_admin_id: storedUserId || currentOrg._id,
         name: empForm.name,
         email: empForm.email,
         phone: empForm.phone,
         password: empForm.password
       });
-      setMsg({ type: 'success', text: 'Employee added successfully!' });
+      setMsg({ type: 'success', text: 'Employee added successfully to real DB!' });
       setShowEmpModal(false);
       setEmpForm({ name: '', email: '', phone: '', password: 'Password@123' });
       fetchData();
@@ -294,9 +231,9 @@ export default function ClientAdminDashboard() {
     }
   };
 
-  const currentOrg = dashboardData ? dashboardData.organization : {};
-  const totalTokens = dashboardData ? dashboardData.total_tokens : 0;
-  const availableTokens = dashboardData ? dashboardData.available_tokens : 0;
+  const currentOrg = organizations.find(o => o._id === storedOrgId) || organizations[0] || {};
+  const totalTokens = currentOrg.total_tokens || 5000000;
+  const availableTokens = currentOrg.available_tokens || 3800000;
   const usedTokens = totalTokens - availableTokens;
 
   return (
@@ -314,9 +251,6 @@ export default function ClientAdminDashboard() {
         <div style={{ display: 'flex', gap: '10px' }}>
           <button className="btn btn-secondary" onClick={fetchData} title="Refresh Live Data">
             <RefreshCw size={18} />
-          </button>
-          <button className="btn btn-secondary" onClick={() => setShowPlanModal(true)}>
-            <Plus size={18} /> Request Plan Upgrade
           </button>
           <button className="btn" onClick={() => setShowEmpModal(true)}>
             <Plus size={18} /> Add Employee / Agent
@@ -1266,33 +1200,6 @@ const response = await fetch("http://localhost:8000/gateway/v1/voice/completion"
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* Modal for Plan Request / Refill */}
-      {showPlanModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div className="card" style={{ width: '100%', maxWidth: '800px', padding: '2rem' }}>
-             <h3 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', color: 'black' }}>Request Budget Refill or Plan Upgrade</h3>
-             <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                <div className="card" style={{ textAlign: 'center', padding: '1.5rem', border: '1px solid var(--border-color)' }}>
-                   <h4>Starter Setup</h4>
-                   <h3 style={{ fontSize: '2rem', margin: '1rem 0', color: 'var(--primary)' }}>$500</h3>
-                   <button className="btn btn-secondary" onClick={() => { handleRequestPlan('Starter Setup', 500); setShowPlanModal(false); }}>Request Plan</button>
-                </div>
-                <div className="card" style={{ textAlign: 'center', padding: '1.5rem', border: '2px solid var(--accent)' }}>
-                   <h4>Professional</h4>
-                   <h3 style={{ fontSize: '2rem', margin: '1rem 0', color: 'var(--accent)' }}>$1,500</h3>
-                   <button className="btn" onClick={() => { handleRequestPlan('Professional', 1500); setShowPlanModal(false); }}>Request Plan</button>
-                </div>
-                <div className="card" style={{ textAlign: 'center', padding: '1.5rem', border: '1px solid var(--border-color)' }}>
-                   <h4>Enterprise Scale</h4>
-                   <h3 style={{ fontSize: '2rem', margin: '1rem 0', color: 'var(--success)' }}>$5,000</h3>
-                   <button className="btn btn-secondary" onClick={() => { handleRequestPlan('Enterprise Scale', 5000); setShowPlanModal(false); }}>Request Plan</button>
-                </div>
-             </div>
-             <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: '2rem' }} onClick={() => setShowPlanModal(false)}>Cancel</button>
           </div>
         </div>
       )}

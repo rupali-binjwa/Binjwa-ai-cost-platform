@@ -10,3 +10,7 @@ client_admins_collection = db["client_admins"]
 tokens_collection = db["tokens"]
 
 
+
+platform_wallets_collection = db['platform_wallets']
+
+plan_requests_collection = db['plan_requests']

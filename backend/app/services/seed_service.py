@@ -5,7 +5,8 @@ from app.database.collections import (
     client_admins_collection,
     employees_collection,
     tokens_collection,
-    usage_logs_collection
+    usage_logs_collection,
+    platform_wallets_collection
 )
 from app.core.security import hash_password
 from datetime import datetime
@@ -83,6 +84,7 @@ def create_super_admin():
             "company_email": "contact@acmecorp.com",
             "company_phone": "+91 9876543210",
             "address": "Tech Park, Indore",
+            "markup_percentage": 20.0,
             "total_tokens": 5000000,
             "available_tokens": 3800000,
             "status": True
@@ -177,5 +179,25 @@ def create_super_admin():
                 }
             ]
             usage_logs_collection.insert_many(sample_logs)
+
+    
+    # 6. Seed Platform Wallets for Super Admin
+    if platform_wallets_collection.count_documents({}) == 0:
+        wallets = [
+            {"platform": "Groq (LLM)", "balance": 5000.00, "status": "Active"},
+            {"platform": "OpenAI (LLM & STT)", "balance": 2500.00, "status": "Active"},
+            {"platform": "Anthropic (LLM)", "balance": 1200.00, "status": "Active"},
+            {"platform": "Deepgram (STT & TTS)", "balance": 1500.00, "status": "Active"},
+            {"platform": "AssemblyAI (STT)", "balance": 800.00, "status": "Active"},
+            {"platform": "Cartesia (TTS)", "balance": 850.50, "status": "Active"},
+            {"platform": "ElevenLabs (TTS)", "balance": 1800.00, "status": "Active"},
+            {"platform": "Play.ht (TTS)", "balance": 500.00, "status": "Active"},
+            {"platform": "Murf AI (TTS)", "balance": 900.00, "status": "Active"},
+            {"platform": "Vobiz (Telecom)", "balance": 3200.00, "status": "Active"},
+            {"platform": "WhatsApp Cloud API (Messaging)", "balance": 1100.00, "status": "Active"},
+            {"platform": "Vapi (Agent Builder)", "balance": 650.00, "status": "Active"}
+        ]
+        platform_wallets_collection.insert_many(wallets)
+        print("✅ Seeded Platform Wallets.")
 
     print("✅ Seeded Sample Organization, Client Admin, Employee, and Integration Telemetry.")

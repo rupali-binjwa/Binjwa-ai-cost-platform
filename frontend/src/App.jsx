@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Link, useLocation, useNavigate } from 're
 import { Layers, Zap, Building2, UserCircle, LogOut, KeyRound } from 'lucide-react';
 
 import SuperAdminDashboard from './pages/SuperAdminDashboard';
+import SuperAdminPricing from './pages/SuperAdminPricing';
 import ClientAdminDashboard from './pages/ClientAdminDashboard';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import LandingPage from './pages/LandingPage';
@@ -26,10 +27,7 @@ function Navigation() {
     <nav className="header">
       <Link to="/" style={{textDecoration: 'none'}}>
         <div className="header-title">
-          <div className="logo-icon">
-            <Zap size={20} />
-          </div>
-          Binjwa AI Gateway
+          <img src="/logo.png" alt="Binjwa Logo" style={{ height: '40px', objectFit: 'contain' }} />
         </div>
       </Link>
       <div className="nav-links">
@@ -61,18 +59,52 @@ function Navigation() {
   );
 }
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    this.setState({ error, errorInfo });
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '2rem', color: 'red', background: '#fee2e2', minHeight: '100vh' }}>
+          <h1>Something went wrong.</h1>
+          <pre style={{ whiteSpace: 'pre-wrap' }}>
+            {this.state.error && this.state.error.toString()}
+            <br />
+            {this.state.errorInfo && this.state.errorInfo.componentStack}
+          </pre>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   return (
     <BrowserRouter>
       <div className="container">
         <Navigation />
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/super-admin" element={<SuperAdminDashboard />} />
-          <Route path="/client-admin" element={<ClientAdminDashboard />} />
-          <Route path="/employee" element={<EmployeeDashboard />} />
-        </Routes>
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/super-admin" element={<SuperAdminDashboard />} />
+            <Route path="/client-admin" element={<ClientAdminDashboard />} />
+            <Route path="/employee" element={<EmployeeDashboard />} />
+          </Routes>
+        </ErrorBoundary>
       </div>
     </BrowserRouter>
   );

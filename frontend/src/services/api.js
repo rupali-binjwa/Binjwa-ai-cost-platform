@@ -28,10 +28,17 @@ export const authAPI = {
     method: 'POST',
     body: JSON.stringify({ email, password }),
   }),
+  setupPassword: (email, password) => request('/auth/setup-password', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  }),
 };
 
 export const superAdminAPI = {
   getOrganizations: () => request('/super-admin/organizations'),
+  getWallets: () => request('/super-admin/wallets'),
+  getPlanRequests: () => request('/super-admin/plan-requests'),
+  approvePlan: (requestId) => request(`/super-admin/approve-plan/${requestId}`, { method: 'POST' }),
   createOrganization: (orgData) => request('/super-admin/organization', {
     method: 'POST',
     body: JSON.stringify(orgData),
@@ -43,11 +50,19 @@ export const superAdminAPI = {
 
 export const clientAdminAPI = {
   getAdmins: () => request('/client-admin/all'),
+  getDashboard: () => request('/client-admin/dashboard'),
+  getPlanRequest: () => request('/client-admin/my-plan-request'),
+  requestPlan: (plan_name, plan_price) => request('/client-admin/request-plan', {
+    method: 'POST',
+    body: JSON.stringify({ plan_name, plan_price }),
+  }),
   createAdmin: (adminData) => request('/client-admin/create', {
     method: 'POST',
     body: JSON.stringify(adminData),
   }),
 };
+
+
 
 export const employeeAPI = {
   getEmployees: () => request('/employee/all'),
@@ -84,6 +99,10 @@ export const usageLogAPI = {
 export const recommendationAPI = {
   autoAnalyze: (orgId) => request(`/recommendations/auto-analyze/${orgId || 'default'}`),
   predictCost: (reqData) => request('/recommendations/predict-cost', {
+    method: 'POST',
+    body: JSON.stringify(reqData),
+  }),
+  evaluateVendors: (reqData) => request('/recommendations/evaluate-vendors', {
     method: 'POST',
     body: JSON.stringify(reqData),
   }),

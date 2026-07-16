@@ -5,31 +5,45 @@ import { Layers, Building, Users, Activity, Plus, Trash2, CheckCircle, AlertCirc
 export default function SuperAdminDashboard() {
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({
-    company_name: '',
-    company_email: '',
-    company_phone: '',
-    address: ''
-  });
-  const [msg, setMsg] = useState({ type: '', text: '' });
+  const [wallets, setWallets] = useState([]);
 
-  const fetchOrganizations = async () => {
-    setLoading(true);
+  const [planRequests, setPlanRequests] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState({ company_name: '', company_email: '', company_phone: '', address: '' });
+  const [msg, setMsg] = useState({ type: '', text: '' });
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
     try {
-      const data = await superAdminAPI.getOrganizations();
-      setOrganizations(Array.isArray(data) ? data : []);
+      setLoading(true);
+      const [orgRes, walletsRes, planRes] = await Promise.all([
+        superAdminAPI.getOrganizations(),
+        superAdminAPI.getWallets(),
+        superAdminAPI.getPlanRequests()
+      ]);
+      setOrganizations(orgRes);
+      setWallets(walletsRes);
+      setPlanRequests(planRes);
     } catch (err) {
-      console.error(err);
-      setMsg({ type: 'error', text: 'Failed to fetch organizations from backend.' });
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchOrganizations();
-  }, []);
+  const handleApprovePlan = async (reqId) => {
+    try {
+      await superAdminAPI.approvePlan(reqId);
+      alert('Plan approved and budget allocated!');
+      fetchData(); // Refresh everything
+    } catch (err) {
+      alert(err.message);
+    }
+  };
 
   const handleCreateOrg = async (e) => {
     e.preventDefault();
@@ -39,7 +53,7 @@ export default function SuperAdminDashboard() {
       setMsg({ type: 'success', text: 'Organization created successfully in MongoDB!' });
       setShowModal(false);
       setFormData({ company_name: '', company_email: '', company_phone: '', address: '' });
-      fetchOrganizations();
+      fetchData();
     } catch (err) {
       setMsg({ type: 'error', text: err.message || 'Failed to create organization.' });
     }
@@ -49,7 +63,7 @@ export default function SuperAdminDashboard() {
     if (!window.confirm('Are you sure you want to delete this organization?')) return;
     try {
       await superAdminAPI.deleteOrganization(id);
-      fetchOrganizations();
+      fetchData();
     } catch (err) {
       alert(err.message || 'Failed to delete');
     }
@@ -67,7 +81,7 @@ export default function SuperAdminDashboard() {
           <p className="page-subtitle">Real-Time Platform Gateway Overview & Client Management</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button className="btn btn-secondary" onClick={fetchOrganizations} title="Refresh Data">
+          <button className="btn btn-secondary" onClick={fetchData} title="Refresh Data">
             <RefreshCw size={18} />
           </button>
           <button className="btn" onClick={() => setShowModal(true)}>
@@ -96,7 +110,7 @@ export default function SuperAdminDashboard() {
           <div className="card-value">{totalTokens.toLocaleString() || '5,000,000'}</div>
           <div className="mt-2" style={{ color: 'var(--success)', fontSize: '0.9rem' }}>Real-time aggregated from MongoDB</div>
         </div>
-        
+
         <div className="card">
           <div className="card-title">
             <Building size={20} color="var(--accent)" /> Onboarded Organizations
@@ -114,20 +128,76 @@ export default function SuperAdminDashboard() {
         </div>
       </div>
 
-      <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', fontWeight: 700, color: 'white' }}>Client Organizations in Database</h2>
+
+      <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', fontWeight: 700, color: 'black', marginTop: '2rem' }}>Global Platform Wallets (Wholesale)</h2>
+      <div className="dashboard-grid" style={{ marginBottom: '2rem' }}>
+        {wallets.length === 0 ? (
+          <div style={{ color: 'var(--text-muted)' }}>Loading wallets...</div>
+        ) : (
+          wallets.map(w => (
+            <div className="card" key={w.platform}>
+              <div className="card-title" style={{ color: 'var(--text-main)' }}>{w.platform}</div>
+              <div className="card-value" style={{ color: 'var(--success)' }}>${parseFloat(w.balance).toFixed(2)}</div>
+              <div className="mt-2" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Status: {w.status}</div>
+            </div>
+          ))
+        )}
+      </div>
+
       
-      <div className="table-container">
+      <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', fontWeight: 700, color: 'var(--warning)' }}>Pending Plan Requests</h2>
+      <div className="table-container" style={{ marginBottom: '3rem', border: '2px solid var(--warning)' }}>
         <table className="data-table">
           <thead>
             <tr>
-              <th>Company Name</th>
-              <th>Company Email</th>
-              <th>Phone & Address</th>
-              <th>Total Tokens</th>
-              <th>Available Tokens</th>
-              <th>Status</th>
+              <th>Client Organization</th>
+              <th>Requested By</th>
+              <th>Plan Name</th>
+              <th>Plan Value</th>
               <th>Actions</th>
             </tr>
+          </thead>
+          <tbody>
+            {planRequests.length === 0 ? (
+              <tr>
+                <td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                  No pending requests right now. When a Client Admin requests a plan, it will appear here for approval.
+                </td>
+              </tr>
+            ) : (
+              planRequests.map(req => (
+                <tr key={req._id}>
+                  <td><strong>{req.company_name || organizations.find(o => o._id === req.organization_id)?.company_name || 'Unknown'}</strong></td>
+                  <td>{req.requested_by || 'Admin'}</td>
+                  <td><span className="badge" style={{ background: 'var(--accent)', color: 'white' }}>{req.plan_name}</span></td>
+                  <td style={{ color: 'var(--success)', fontWeight: 600 }}>${(req.plan_price || 0).toFixed(2)}</td>
+                  <td>
+                    <button className="btn" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }} onClick={() => handleApprovePlan(req._id)}>
+                      Approve & Fund Wallet
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', fontWeight: 700, color: 'black' }}>Client Organizations in Database</h2>
+
+
+      <div className="table-container">
+        <table className="data-table">
+          <thead>
+              <tr>
+                <th>Company Name</th>
+                <th>Company Email</th>
+                <th>Phone & Address</th>
+                <th>Total Budget ($)</th>
+                <th>Available Balance ($)</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
           </thead>
           <tbody>
             {loading ? (
@@ -159,8 +229,8 @@ export default function SuperAdminDashboard() {
                     </span>
                   </td>
                   <td>
-                    <button 
-                      className="btn btn-secondary" 
+                    <button
+                      className="btn btn-secondary"
                       onClick={() => handleDelete(org._id)}
                       style={{ padding: '0.4rem 0.6rem', color: 'var(--danger)', borderColor: 'rgba(239, 68, 68, 0.3)' }}
                       title="Delete Organization"
@@ -179,34 +249,34 @@ export default function SuperAdminDashboard() {
       {showModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="card" style={{ width: '100%', maxWidth: '500px', padding: '2rem' }}>
-            <h3 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', color: 'white' }}>Onboard New Client Organization</h3>
+            <h3 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', color: 'black' }}>Onboard New Client Organization</h3>
             <form onSubmit={handleCreateOrg}>
               <div className="form-group">
                 <label className="label">Company Name</label>
-                <input 
+                <input
                   type="text" className="input" required placeholder="e.g. Acme Tech Solutions"
-                  value={formData.company_name} onChange={e => setFormData({...formData, company_name: e.target.value})}
+                  value={formData.company_name} onChange={e => setFormData({ ...formData, company_name: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label className="label">Company Email</label>
-                <input 
+                <input
                   type="email" className="input" required placeholder="contact@company.com"
-                  value={formData.company_email} onChange={e => setFormData({...formData, company_email: e.target.value})}
+                  value={formData.company_email} onChange={e => setFormData({ ...formData, company_email: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label className="label">Phone Number</label>
-                <input 
+                <input
                   type="text" className="input" required placeholder="+91 9876543210"
-                  value={formData.company_phone} onChange={e => setFormData({...formData, company_phone: e.target.value})}
+                  value={formData.company_phone} onChange={e => setFormData({ ...formData, company_phone: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label className="label">Address / Location</label>
-                <input 
+                <input
                   type="text" className="input" required placeholder="Tech Park, Bangalore"
-                  value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}
+                  value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })}
                 />
               </div>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
