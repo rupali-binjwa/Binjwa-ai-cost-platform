@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrency } from '../context/CurrencyContext';
 import { superAdminAPI, clientAdminAPI, employeeAPI, modelsAPI, recommendationAPI } from '../services/api';
 import { Building2, Users, Database, TrendingUp, CheckCircle, Code, ShieldCheck, Activity, Plus, RefreshCw, Terminal, PhoneCall, MessageSquare } from 'lucide-react';
 
 export default function SuperAdminPricing() {
+  const { formatCurrency, currency, EXCHANGE_RATES } = useCurrency();
   const [organizations, setOrganizations] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [models, setModels] = useState([]);
@@ -49,7 +51,7 @@ export default function SuperAdminPricing() {
     { id: 'bulk_ivr', name: 'Bulk IVR Calling', category: 'Telecom & IVR', stt: 0.0005, tts: 0.0005, telecom: 0.007, llm: 0.0001, costPerMinute: 0.0081, desc: 'High-concurrency outbound DTMF & voice broadcast via Vobiz Trunking.' },
     { id: 'multi_level_ivr', name: 'Multi-Level IVR Routing', category: 'Telecom & IVR', stt: 0.0005, tts: 0.0005, telecom: 0.007, llm: 0.0002, costPerMinute: 0.0082, desc: 'Smart intent-driven DTMF and natural language branch routing.' },
     { id: 'press_1_transfer', name: 'Press-1 Human Transfer', category: 'Telecom & IVR', stt: 0.0003, tts: 0.0003, telecom: 0.007, llm: 0.0001, costPerMinute: 0.0077, desc: 'Live warm-transfer and bridging to human sales/support agents.' },
-    { id: 'call_recording', name: 'Call Recording', category: 'Telecom & IVR', stt: 0.0, tts: 0.0, telecom: 0.003, llm: 0.0, costPerMinute: 0.0030, desc: 'Encrypted multi-channel stereo WAV/MP3 recording on AWS S3.' },
+    { id: 'call_recording', name: 'Call Recording', category: 'Telecom & IVR', stt: 0.0, tts: 0.0, telecom: 0.003, llm: 0.0, costPerMinute: 0.0030, desc: 'Encrypted multi-channel stereo WAV/MP3 recording.' },
     { id: 'real_time_crm_reports', name: 'Real-Time CRM Reports', category: 'Analytics & CRM', stt: 0.0, tts: 0.0, telecom: 0.001, llm: 0.0005, costPerMinute: 0.0015, desc: 'Live telemetry, lead conversion analytics, and webhook dashboards.' },
     { id: 'whatsapp_auto_reply', name: 'WhatsApp Auto-Reply', category: 'WhatsApp Messaging', stt: 0.0, tts: 0.0, telecom: 0.0045, llm: 0.0015, costPerMinute: 0.0060, desc: 'Instant multilingual auto-response using DeepSeek V3 / Llama 3.' },
     { id: 'whatsapp_team_dashboard', name: 'WhatsApp Team Dashboard', category: 'WhatsApp Messaging', stt: 0.0, tts: 0.0, telecom: 0.0015, llm: 0.0005, costPerMinute: 0.0020, desc: 'Multi-agent shared team inbox, assignment & SLA monitoring.' },
@@ -243,7 +245,7 @@ export default function SuperAdminPricing() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="badge primary" style={{ fontSize: '0.8rem' }}>Client Admin Portal</span>
             <span style={{ color: 'var(--text-muted)' }}>|</span>
-            <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{currentOrg.company_name || 'Acme Voice & Chatbot Corp'}</span>
+            <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{currentOrg.company_name || 'Loading Organization...'}</span>
           </div>
           <h1 className="page-title" style={{ marginTop: '4px' }}>AI Gateway & Telemetry Dashboard</h1>
           <p className="page-subtitle">Automated traffic analysis, token routing, and platform integrations</p>
@@ -485,7 +487,7 @@ export default function SuperAdminPricing() {
                               {plan.name}
                             </div>
                             <div style={{ fontSize: '0.7rem', color: isSelected ? '#fdba74' : 'var(--text-muted)' }}>
-                              {plan.category} • ${plan.costPerMinute.toFixed(4)}/min
+                              {plan.category} • {formatCurrency(plan.costPerMinute, 4)}/min
                             </div>
                           </div>
                         </div>
@@ -732,36 +734,36 @@ export default function SuperAdminPricing() {
                       {(hasVoice || hasTelecom || hasAiVoice) && (
                         <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{topSTT.name} (Speech-to-Text)</div>
-                          <div style={{ color: 'var(--success)', fontWeight: 700 }}>~${sttTotal.toFixed(2)} / mo</div>
+                          <div style={{ color: 'var(--success)', fontWeight: 700 }}>~{formatCurrency(sttTotal, 2)} / mo</div>
                         </div>
                       )}
                       {(hasNeuralVoice || hasVoice || hasAiVoice) && (
                         <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{topTTS.name} (Voice)</div>
-                          <div style={{ color: 'var(--primary)', fontWeight: 700 }}>~${ttsTotal.toFixed(2)} / mo</div>
+                          <div style={{ color: 'var(--primary)', fontWeight: 700 }}>~{formatCurrency(ttsTotal, 2)} / mo</div>
                         </div>
                       )}
                       {(hasTelecom || hasVoice || hasAiVoice) && (
                         <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{topTelecom.name} & Telecom</div>
-                          <div style={{ color: 'var(--text-muted)', fontWeight: 700 }}>~${telecomTotal.toFixed(2)} / mo</div>
+                          <div style={{ color: 'var(--text-muted)', fontWeight: 700 }}>~{formatCurrency(telecomTotal, 2)} / mo</div>
                         </div>
                       )}
                       {hasWhatsApp && (
                         <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Meta / WhatsApp Cloud API</div>
-                          <div style={{ color: 'var(--success)', fontWeight: 700 }}>~${whatsappTotal.toFixed(2)} / mo</div>
+                          <div style={{ color: 'var(--success)', fontWeight: 700 }}>~{formatCurrency(whatsappTotal, 2)} / mo</div>
                         </div>
                       )}
                       {hasCrm && (
                         <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>CRM Reports & Webhook Events</div>
-                          <div style={{ color: 'var(--warning)', fontWeight: 700 }}>~${crmTotal.toFixed(2)} / mo</div>
+                          <div style={{ color: 'var(--warning)', fontWeight: 700 }}>~{formatCurrency(crmTotal, 2)} / mo</div>
                         </div>
                       )}
                       <div style={{ background: 'var(--bg-surface)', padding: '0.75rem', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>LLM Intelligence ({topLLM.name})</div>
-                        <div style={{ color: 'var(--warning)', fontWeight: 700 }}>~${llmTotal.toFixed(2)} / mo</div>
+                        <div style={{ color: 'var(--warning)', fontWeight: 700 }}>~{formatCurrency(llmTotal, 2)} / mo</div>
                       </div>
                     </div>
                   </div>
@@ -769,19 +771,19 @@ export default function SuperAdminPricing() {
                   <div style={{ background: 'var(--bg-surface)', padding: '1.5rem', borderRadius: '14px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>Total Combined Monthly Infrastructure Cost</div>
                     <div style={{ fontSize: '2.8rem', fontWeight: 800, color: 'var(--success)', margin: '6px 0' }}>
-                      ${monthlyTotal.toFixed(2)}
+                      {formatCurrency(monthlyTotal, 2)}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '14px' }}>
-                      Effective rate across {activePlans.length} features: <strong style={{ color: 'var(--text-main)' }}>${totalUnitRate.toFixed(4)} / min</strong>
+                      Effective rate across {activePlans.length} features: <strong style={{ color: 'var(--text-main)' }}>{formatCurrency(totalUnitRate, 4)} / min</strong>
                     </div>
                     <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px dashed rgba(239, 68, 68, 0.3)', padding: '0.75rem', borderRadius: '8px', marginBottom: '14px' }}>
                       <div style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>Competitor Agency Wrappers (Legacy Rate)</div>
                       <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--danger)', textDecoration: 'line-through' }}>
-                        ${competitorMonthlyTotal.toFixed(2)} / mo
+                        {formatCurrency(competitorMonthlyTotal, 2)} / mo
                       </div>
                     </div>
                     <span className="badge success" style={{ display: 'inline-block', fontSize: '0.9rem', padding: '0.5rem 1.25rem', fontWeight: 800 }}>
-                      You Save {savingsPercent}% (${(competitorMonthlyTotal - monthlyTotal).toFixed(2)}) with Binjwa
+                      You Save {savingsPercent}% ({formatCurrency((competitorMonthlyTotal - monthlyTotal), 2)}) with Binjwa
                     </span>
                   </div>
                 </div>
@@ -839,8 +841,8 @@ export default function SuperAdminPricing() {
                               </td>
                               <td style={{ color: v.latency < 250 ? 'var(--success)' : '#fca5a5', fontWeight: 700 }}>{v.latency} ms</td>
                               <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{v.accuracy}</td>
-                              <td style={{ fontWeight: 600, color: 'var(--warning)' }}>${v.rate.toFixed(4)} / min</td>
-                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>${v.monthly_cost.toFixed(2)} / mo</td>
+                              <td style={{ fontWeight: 600, color: 'var(--warning)' }}>{formatCurrency(v.rate, 4)} / min</td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatCurrency(v.monthly_cost, 2)} / mo</td>
                               <td>
                                 {v.is_top ? (
                                   <span className="badge primary" style={{ fontWeight: 700 }}>#1 Auto-Routed</span>
@@ -890,8 +892,8 @@ export default function SuperAdminPricing() {
                               </td>
                               <td style={{ color: v.latency < 200 ? 'var(--success)' : '#fdba74', fontWeight: 700 }}>{v.latency} ms</td>
                               <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{v.quality}</td>
-                              <td style={{ fontWeight: 600, color: 'var(--warning)' }}>${v.rate.toFixed(4)} / min</td>
-                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>${v.monthly_cost.toFixed(2)} / mo</td>
+                              <td style={{ fontWeight: 600, color: 'var(--warning)' }}>{formatCurrency(v.rate, 4)} / min</td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatCurrency(v.monthly_cost, 2)} / mo</td>
                               <td>
                                 {v.is_top ? (
                                   <span className="badge primary" style={{ fontWeight: 700 }}>#1 Auto-Routed</span>
@@ -939,8 +941,8 @@ export default function SuperAdminPricing() {
                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{v.provider}</div>
                               </td>
                               <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{v.uptime}</td>
-                              <td style={{ fontWeight: 600, color: v.rate > 0.02 ? '#f87171' : '#fdba74' }}>${v.rate.toFixed(4)} / min</td>
-                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>${v.monthly_cost.toFixed(2)} / mo</td>
+                              <td style={{ fontWeight: 600, color: v.rate > 0.02 ? '#f87171' : '#fdba74' }}>{formatCurrency(v.rate, 4)} / min</td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatCurrency(v.monthly_cost, 2)} / mo</td>
                               <td>
                                 {v.is_top ? (
                                   <span className="badge primary" style={{ fontWeight: 700 }}>Tier-1 Gateway Trunk</span>
@@ -1004,11 +1006,11 @@ export default function SuperAdminPricing() {
                               </td>
                               <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)', maxWidth: '220px' }}>{m.strength}</td>
                               <td style={{ fontWeight: 600, color: 'var(--warning)' }}>{m.context}</td>
-                              <td style={{ color: 'var(--text-muted)' }}>${m.input_cost.toFixed(5)}</td>
-                              <td style={{ color: 'var(--text-muted)' }}>${m.output_cost.toFixed(5)}</td>
-                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>${singleCost.toFixed(4)}</td>
+                              <td style={{ color: 'var(--text-muted)' }}>{formatCurrency(m.input_cost, 5)}</td>
+                              <td style={{ color: 'var(--text-muted)' }}>{formatCurrency(m.output_cost, 5)}</td>
+                              <td style={{ fontWeight: 700, color: 'var(--text-main)' }}>{formatCurrency(singleCost, 4)}</td>
                               <td style={{ fontWeight: 800, color: isTop ? 'var(--success)' : 'var(--accent)', fontSize: '1.05rem' }}>
-                                ${bulkCost.toFixed(2)} / mo
+                                {formatCurrency(bulkCost, 2)} / mo
                               </td>
                               <td>
                                 <span style={{ color: m.latency < 260 ? 'var(--success)' : m.latency < 400 ? '#fde047' : '#fca5a5', fontWeight: 700 }}>

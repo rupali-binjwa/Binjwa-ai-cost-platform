@@ -18,6 +18,10 @@ async function request(endpoint, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401) {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
     throw new Error(data.detail || data.message || 'API request failed');
   }
   return data;
@@ -27,6 +31,10 @@ export const authAPI = {
   login: (email, password) => request('/auth/login', {
     method: 'POST',
     body: JSON.stringify({ email, password }),
+  }),
+  signup: (company_name, email, phone, password) => request('/auth/signup', {
+    method: 'POST',
+    body: JSON.stringify({ company_name, email, phone, password }),
   }),
   setupPassword: (email, password) => request('/auth/setup-password', {
     method: 'POST',
@@ -66,6 +74,7 @@ export const clientAdminAPI = {
 
 export const employeeAPI = {
   getEmployees: () => request('/employee/all'),
+  getEmployee: (id) => request(`/employee/${id}`),
   createEmployee: (empData) => request('/employee/create', {
     method: 'POST',
     body: JSON.stringify(empData),

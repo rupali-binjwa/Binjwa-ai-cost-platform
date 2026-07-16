@@ -116,7 +116,7 @@ function Recommendations() {
                       </div>
                       <div style={{textAlign: 'right'}}>
                         <div style={{fontSize: '1.25rem', fontWeight: 700, color: rec.is_recommended ? 'var(--primary)' : 'inherit'}}>
-                          ${rec.predicted_cost.toFixed(4)}
+                          {formatCurrency(rec.predicted_cost, 4)}
                         </div>
                         <div style={{fontSize: '0.875rem', color: 'var(--text-muted)'}}>
                           Est. {rec.predicted_total_tokens.toLocaleString()} tokens

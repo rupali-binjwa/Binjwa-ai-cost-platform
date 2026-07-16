@@ -66,14 +66,27 @@ def create_employee(data: EmployeeCreate):
             detail="Employee email already exists"
         )
 
+    if data.allocated_tokens > 0:
+        if organization.get("available_tokens", 0) < data.allocated_tokens:
+            raise HTTPException(
+                status_code=400,
+                detail="Organization does not have enough available tokens for this allocation."
+            )
+        organizations_collection.update_one(
+            {"_id": ObjectId(org_id)},
+            {"$inc": {"available_tokens": -data.allocated_tokens}}
+        )
+
     employee = {
         "organization_id": org_id,
         "client_admin_id": admin_id,
         "name": data.name,
-        "email": data.email,
+        "email": data.email.strip().lower(),
         "phone": data.phone,
         "password": hash_password(data.password),
         "role": "employee",
+        "allocated_tokens": data.allocated_tokens,
+        "available_tokens": data.allocated_tokens,
         "is_active": True
     }
 

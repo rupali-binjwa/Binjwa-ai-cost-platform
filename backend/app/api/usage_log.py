@@ -70,6 +70,13 @@ def create_usage_log(data: UsageLogCreate):
         "date_and_time": datetime.utcnow()
     }
 
+    # Deduct tokens from employee's allocated pool if they have one
+    if employee.get("allocated_tokens"):
+        employees_collection.update_one(
+            {"_id": ObjectId(emp_id)},
+            {"$inc": {"available_tokens": -data.total_tokens}}
+        )
+
     result = usage_logs_collection.insert_one(usage_log)
 
     return {

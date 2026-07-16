@@ -8,6 +8,7 @@ class EmployeeCreate(BaseModel):
     email: EmailStr
     phone: str
     password: str
+    allocated_tokens: float = 0.0
 
 
 class EmployeeUpdate(BaseModel):

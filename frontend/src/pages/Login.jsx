@@ -17,6 +17,9 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [isSetupMode, setIsSetupMode] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
+  const [companyName, setCompanyName] = useState('');
+  const [phone, setPhone] = useState('');
   const navigate = useNavigate();
 
   const handleTabChange = (role) => {
@@ -25,7 +28,7 @@ export default function Login() {
     if (role === 'super_admin') {
       setEmail('admin@binjwa.com');
     } else if (role === 'client_admin') {
-      setEmail('clientadmin@binjwa.com');
+      setEmail(''); // Clear for real use case
     } else {
       setEmail('employee@binjwa.com');
     }
@@ -37,7 +40,15 @@ export default function Login() {
     setLoading(true);
     setError(null);
     try {
-      if (isSetupMode) {
+      if (isSignup && activeTab === 'client_admin') {
+        await authAPI.signup(companyName, email, phone, password);
+        setSuccess(true);
+        setError('Signup successful! You can now log in.');
+        setTimeout(() => {
+          setIsSignup(false);
+          setSuccess(false);
+        }, 1500);
+      } else if (isSetupMode) {
         await authAPI.setupPassword(email, password);
         setSuccess(true);
         setTimeout(() => {
@@ -85,7 +96,7 @@ export default function Login() {
           <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, var(--primary), var(--accent))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(99, 102, 241, 0.4)' }}>
             <Zap size={28} />
           </div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em' }}>{isSetupMode ? "Setup Account" : "Welcome Back"}</h2>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em' }}>{isSignup ? "Create Organization" : (isSetupMode ? "Setup Account" : "Welcome Back")}</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>Select your role portal and authenticate to continue</p>
         </div>
 
@@ -141,8 +152,54 @@ export default function Login() {
           </div>
         )}
 
+        {activeTab === 'client_admin' && !isSetupMode && (
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', justifyContent: 'center' }}>
+            <button 
+              type="button" 
+              onClick={() => setIsSignup(false)}
+              style={{ padding: '0.5rem 1rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: !isSignup ? 'var(--accent)' : 'transparent', color: !isSignup ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              Log In
+            </button>
+            <button 
+              type="button" 
+              onClick={() => setIsSignup(true)}
+              style={{ padding: '0.5rem 1rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: isSignup ? 'var(--accent)' : 'transparent', color: isSignup ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
+            >
+              Sign Up
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit}>
-          <div className="form-group">
+          {isSignup && activeTab === 'client_admin' && (
+            <>
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Company Name</label>
+                <input 
+                  type="text" 
+                  style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.2)', background: 'rgba(99, 102, 241, 0.02)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }}
+                  required 
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="Acme Corp"
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Phone Number</label>
+                <input 
+                  type="text" 
+                  style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.2)', background: 'rgba(99, 102, 241, 0.02)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }}
+                  required 
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+1 234 567 8900"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="form-group" style={{ marginBottom: '1.25rem' }}>
             <label className="label">Portal Email Address</label>
             <input 
               type="email" 

@@ -62,7 +62,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
                   employees_collection.find_one(email_regex)
 
     if db_user is None:
-        return fallback_user
+        raise credentials_exception
 
     db_user["_id"] = str(db_user["_id"])
     return db_user

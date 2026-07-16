@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrency } from '../context/CurrencyContext';
 import { FileText } from 'lucide-react';
 
 function UsageLogs() {
@@ -46,7 +47,7 @@ function UsageLogs() {
                 <th>Organization</th>
                 <th>Model</th>
                 <th>Total Tokens</th>
-                <th>Cost ($)</th>
+                <th>Cost ({EXCHANGE_RATES[currency].symbol})</th>
                 <th>Timestamp</th>
               </tr>
             </thead>
@@ -62,7 +63,7 @@ function UsageLogs() {
                   <td>{log.organization_id}</td>
                   <td><span className="badge">{log.model_id}</span></td>
                   <td>{log.total_tokens.toLocaleString()}</td>
-                  <td style={{fontWeight: '500'}}>${log.total_cost.toFixed(3)}</td>
+                  <td style={{fontWeight: '500'}}>{formatCurrency(log.total_cost, 3)}</td>
                   <td style={{color: 'var(--text-muted)', fontSize: '0.875rem'}}>
                     {new Date(log.date_and_time).toLocaleString()}
                   </td>

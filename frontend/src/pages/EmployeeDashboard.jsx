@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useCurrency } from '../context/CurrencyContext';
 import { usageLogAPI, modelsAPI, employeeAPI } from '../services/api';
 import { UserCircle, Zap, Activity, Clock, Play, CheckCircle, Terminal, Bot } from 'lucide-react';
 
 export default function EmployeeDashboard() {
+  const { formatCurrency, currency, EXCHANGE_RATES } = useCurrency();
   const [logs, setLogs] = useState([]);
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
@@ -10,6 +12,7 @@ export default function EmployeeDashboard() {
   const [running, setRunning] = useState(false);
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [executionResult, setExecutionResult] = useState(null);
+  const [employeeInfo, setEmployeeInfo] = useState(null);
 
   const storedEmpId = localStorage.getItem('user_id');
   const storedOrgId = localStorage.getItem('organization_id');
@@ -17,15 +20,18 @@ export default function EmployeeDashboard() {
 
   const fetchData = async () => {
     try {
-      const [logsRes, modelsRes] = await Promise.all([
+      const [logsRes, modelsRes, empRes] = await Promise.all([
         usageLogAPI.getAllLogs(),
-        modelsAPI.getAllModels()
+        modelsAPI.getAllModels(),
+        storedEmpId ? employeeAPI.getEmployee(storedEmpId).catch(() => null) : Promise.resolve(null)
       ]);
 
+      if (empRes) setEmployeeInfo(empRes);
+
       const logList = logsRes && logsRes.usage_logs ? logsRes.usage_logs : [];
-      // filter for current employee or show all if demo
-      const myLogs = storedEmpId ? logList.filter(l => l.employee_id === storedEmpId || l.organization_id === storedOrgId) : logList;
-      setLogs(myLogs.length > 0 ? myLogs : logList);
+      // strictly filter for current employee
+      const myLogs = storedEmpId ? logList.filter(l => l.employee_id === storedEmpId) : [];
+      setLogs(myLogs);
 
       const modelList = modelsRes && modelsRes.models ? modelsRes.models : [];
       setModels(modelList);
@@ -161,17 +167,17 @@ export default function EmployeeDashboard() {
           <div className="card-title">
             <Zap size={20} color="var(--primary)" /> My Token Allowance
           </div>
-          <div className="card-value">{(500000 - totalUsedByMe).toLocaleString()}</div>
-          <div className="mt-2" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Out of 500,000 monthly quota</div>
+          <div className="card-value">{employeeInfo && employeeInfo.available_tokens !== undefined ? formatCurrency(employeeInfo.available_tokens, 0) : 'No Limit'}</div>
+          <div className="mt-2" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Out of {employeeInfo && employeeInfo.allocated_tokens !== undefined ? formatCurrency(employeeInfo.allocated_tokens, 0) : 'N/A'} allocated quota</div>
         </div>
         
         <div className="card">
           <div className="card-title">
             <Activity size={20} color="var(--accent)" /> Tokens Consumed by Me
           </div>
-          <div className="card-value">{totalUsedByMe.toLocaleString()}</div>
+          <div className="card-value">{formatCurrency(totalUsedByMe, 0)}</div>
           <div className="mt-2" style={{ color: 'var(--accent)', fontSize: '0.85rem' }}>
-            Total Cost incurred: ${roundTo(totalCostByMe, 4)}
+            Total Cost incurred: {formatCurrency(totalCostByMe, 4)}
           </div>
         </div>
 
@@ -230,7 +236,7 @@ export default function EmployeeDashboard() {
 
             <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Cost Incurred</div>
-              <div style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1.05rem' }}>${executionResult.cost}</div>
+              <div style={{ color: 'var(--accent)', fontWeight: 700, fontSize: '1.05rem' }}>{formatCurrency(executionResult.cost, 4)}</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Logged to MongoDB</div>
             </div>
           </div>

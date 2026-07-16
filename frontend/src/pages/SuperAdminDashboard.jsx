@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useCurrency } from '../context/CurrencyContext';
 import { superAdminAPI, clientAdminAPI } from '../services/api';
 import { Layers, Building, Users, Activity, Plus, Trash2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function SuperAdminDashboard() {
+  const navigate = useNavigate();
+  const { formatCurrency, currency, EXCHANGE_RATES } = useCurrency();
   const [organizations, setOrganizations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [wallets, setWallets] = useState([]);
@@ -14,8 +18,15 @@ export default function SuperAdminDashboard() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    const role = localStorage.getItem('user_role');
+    if (role !== 'super_admin') {
+      if (role === 'client_admin') navigate('/client-admin');
+      else if (role === 'employee') navigate('/employee');
+      else navigate('/login');
+      return;
+    }
     fetchData();
-  }, []);
+  }, [navigate]);
 
   const fetchData = async () => {
     try {
@@ -69,10 +80,10 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  // Calculate stats from real DB
-  const totalTokens = organizations.reduce((sum, org) => sum + (org.total_tokens || 0), 0);
-  const totalAvailable = organizations.reduce((sum, org) => sum + (org.available_tokens || 0), 0);
-
+  // Calculate global stats based on Super Admin inventory
+  const availableTokens = wallets.reduce((sum, w) => sum + (w.balance || 0), 0);
+  const assignedTokens = organizations.reduce((sum, org) => sum + (org.total_tokens || 0), 0);
+  const totalTokens = availableTokens + assignedTokens;
   return (
     <div>
       <div className="flex-between mb-2">
@@ -102,12 +113,18 @@ export default function SuperAdminDashboard() {
         </div>
       )}
 
+      {error && (
+        <div style={{ padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5' }}>
+          <strong>API Error:</strong> {error}
+        </div>
+      )}
+
       <div className="dashboard-grid">
         <div className="card">
           <div className="card-title">
             <Activity size={20} color="var(--primary)" /> Total Platform Tokens
           </div>
-          <div className="card-value">{totalTokens.toLocaleString() || '5,000,000'}</div>
+          <div className="card-value">{formatCurrency(totalTokens, 0)}</div>
           <div className="mt-2" style={{ color: 'var(--success)', fontSize: '0.9rem' }}>Real-time aggregated from MongoDB</div>
         </div>
 
@@ -123,7 +140,7 @@ export default function SuperAdminDashboard() {
           <div className="card-title">
             <Users size={20} color="var(--warning)" /> Available Pool Balance
           </div>
-          <div className="card-value">{totalAvailable.toLocaleString() || '3,800,000'}</div>
+          <div className="card-value">{formatCurrency(availableTokens, 0)}</div>
           <div className="mt-2" style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Tokens ready for deployment</div>
         </div>
       </div>
@@ -137,7 +154,7 @@ export default function SuperAdminDashboard() {
           wallets.map(w => (
             <div className="card" key={w.platform}>
               <div className="card-title" style={{ color: 'var(--text-main)' }}>{w.platform}</div>
-              <div className="card-value" style={{ color: 'var(--success)' }}>${parseFloat(w.balance).toFixed(2)}</div>
+              <div className="card-value" style={{ color: 'var(--success)' }}>{formatCurrency(w.balance, 2)}</div>
               <div className="mt-2" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Status: {w.status}</div>
             </div>
           ))
@@ -170,7 +187,7 @@ export default function SuperAdminDashboard() {
                   <td><strong>{req.company_name || organizations.find(o => o._id === req.organization_id)?.company_name || 'Unknown'}</strong></td>
                   <td>{req.requested_by || 'Admin'}</td>
                   <td><span className="badge" style={{ background: 'var(--accent)', color: 'white' }}>{req.plan_name}</span></td>
-                  <td style={{ color: 'var(--success)', fontWeight: 600 }}>${(req.plan_price || 0).toFixed(2)}</td>
+                  <td style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(req.plan_price || 0, 2)}</td>
                   <td>
                     <button className="btn" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }} onClick={() => handleApprovePlan(req._id)}>
                       Approve & Fund Wallet
@@ -193,8 +210,8 @@ export default function SuperAdminDashboard() {
                 <th>Company Name</th>
                 <th>Company Email</th>
                 <th>Phone & Address</th>
-                <th>Total Budget ($)</th>
-                <th>Available Balance ($)</th>
+                <th>Total Budget ({EXCHANGE_RATES[currency].symbol})</th>
+                <th>Available Balance ({EXCHANGE_RATES[currency].symbol})</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -215,14 +232,14 @@ export default function SuperAdminDashboard() {
             ) : (
               organizations.map(org => (
                 <tr key={org._id}>
-                  <td style={{ fontWeight: 600, color: 'white' }}>{org.company_name}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--text-main)' }}>{org.company_name}</td>
                   <td style={{ color: 'var(--text-muted)' }}>{org.company_email}</td>
                   <td style={{ fontSize: '0.85rem' }}>
                     <div>{org.company_phone}</div>
                     <div style={{ color: 'var(--text-muted)' }}>{org.address}</div>
                   </td>
-                  <td style={{ fontWeight: 700, color: '#a5b4fc' }}>{(org.total_tokens || 0).toLocaleString()}</td>
-                  <td style={{ fontWeight: 700, color: 'var(--success)' }}>{(org.available_tokens || 0).toLocaleString()}</td>
+                  <td style={{ fontWeight: 600 }}>{formatCurrency(org.total_tokens || 0, 2)}</td>
+                  <td style={{ fontWeight: 600, color: 'var(--success)' }}>{formatCurrency(org.available_tokens || 0, 2)}</td>
                   <td>
                     <span className={`badge ${org.status ? 'success' : 'warning'}`}>
                       {org.status ? 'Active Gateway' : 'Inactive'}

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
 
-from app.schemas.auth import LoginRequest
+from app.schemas.auth import LoginRequest, SignupRequest
 from app.database.collections import (
     users_collection,
     client_admins_collection,
@@ -24,6 +24,49 @@ def safe_verify_password(plain_pwd: str, stored_pwd: str) -> bool:
     # Fallback if stored_pwd is plain text
     return plain_pwd == stored_pwd
 
+
+@router.post("/signup")
+def signup(data: SignupRequest):
+    import re
+    from app.database.collections import organizations_collection, client_admins_collection, users_collection, employees_collection
+    from app.core.security import hash_password
+
+    email = data.email.strip().lower()
+    email_regex = {"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}}
+
+    # Check if email is already taken
+    if client_admins_collection.find_one(email_regex) or users_collection.find_one(email_regex) or employees_collection.find_one(email_regex):
+        raise HTTPException(status_code=400, detail="Email is already registered.")
+
+    # 1. Create Organization
+    org = {
+        "company_name": data.company_name,
+        "company_email": email,
+        "company_phone": data.phone,
+        "status": "Inactive",
+        "total_tokens": 0,
+        "available_tokens": 0,
+        "active_plan": ""
+    }
+    org_result = organizations_collection.insert_one(org)
+    org_id = str(org_result.inserted_id)
+
+    # 2. Create Client Admin
+    client_admin = {
+        "organization_id": org_id,
+        "name": data.company_name + " Admin",
+        "email": email,
+        "phone": data.phone,
+        "password": hash_password(data.password),
+        "role": "client_admin",
+        "is_active": True
+    }
+    client_admins_collection.insert_one(client_admin)
+
+    return {
+        "message": "Account created successfully",
+        "organization_id": org_id
+    }
 
 @router.post("/login")
 def login(user: LoginRequest):

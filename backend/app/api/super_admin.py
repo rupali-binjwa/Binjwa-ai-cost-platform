@@ -163,10 +163,13 @@ def approve_plan(request_id: str, current_user: dict = Depends(get_current_super
     org_id = req["organization_id"]
     price = req["plan_price"]
     
-    # 1. Update Organization Budget
+    # 1. Update Organization Budget and Active Plan
     organizations_collection.update_one(
         {"_id": ObjectId(org_id)},
-        {"$inc": {"total_tokens": price, "available_tokens": price}}
+        {
+            "$inc": {"total_tokens": price, "available_tokens": price},
+            "$set": {"active_plan": req.get("plan_name", "Unknown Plan")}
+        }
     )
     
     # 2. Mark request approved
@@ -175,13 +178,37 @@ def approve_plan(request_id: str, current_user: dict = Depends(get_current_super
         {"$set": {"status": "approved"}}
     )
     
-    # 3. (Phase 3 logic) Deduct from Super Admin wallets?
-    # We will simply pull proportionately or from the largest wallet to simulate deduction
-    largest_wallet = platform_wallets_collection.find_one({}, sort=[("balance", -1)])
-    if largest_wallet:
-        platform_wallets_collection.update_one(
-            {"_id": largest_wallet["_id"]},
-            {"$inc": {"balance": -price}}
-        )
+    # 3. Deduct from platform wallets proportionally based on the plan
+    plan_name_upper = req.get("plan_name", "").upper()
+    
+    platform_ratios = {}
+    if "ENTERPRISE" in plan_name_upper or "PRO" in plan_name_upper or "GROWTH" in plan_name_upper:
+        platform_ratios = {
+            "Groq (LLM)": 0.30,
+            "Cartesia (TTS)": 0.25,
+            "Deepgram (STT & TTS)": 0.25,
+            "Vobiz (Telecom)": 0.10,
+            "OpenRouter": 0.10
+        }
+    elif "ESSENTIAL" in plan_name_upper:
+        platform_ratios = {
+            "Vobiz (Telecom)": 0.60,
+            "OpenRouter": 0.40
+        }
+    else:
+        platform_ratios = {
+            "Vobiz (Telecom)": 1.0
+        }
+
+    target_wallets = list(platform_wallets_collection.find({"platform": {"$in": list(platform_ratios.keys())}}))
+    if target_wallets:
+        for w in target_wallets:
+            ratio = platform_ratios.get(w["platform"], 0)
+            deduction = price * ratio
+            if deduction > 0:
+                platform_wallets_collection.update_one(
+                    {"_id": w["_id"]},
+                    {"$inc": {"balance": -deduction}}
+                )
         
     return {"message": "Plan approved and wallet funded!"}

@@ -97,10 +97,14 @@ def request_plan(data: PlanRequest, current_user: dict = Depends(get_current_cli
     
     org_id = current_user.get("organization_id")
     if not org_id:
-        raise HTTPException(status_code=400, detail="User does not belong to an organization")
-        
-    org = organizations_collection.find_one({"_id": ObjectId(org_id)})
-    company_name = org.get("company_name", "Unknown") if org else "Unknown"
+        if current_user.get("role") == "super_admin":
+            org_id = "000000000000000000000000"
+            company_name = "Super Admin Test Org"
+        else:
+            raise HTTPException(status_code=400, detail="User does not belong to an organization")
+    else:
+        org = organizations_collection.find_one({"_id": ObjectId(org_id)})
+        company_name = org.get("company_name", "Unknown") if org else "Unknown"
 
     request_doc = {
         "organization_id": str(org_id),
@@ -138,11 +142,17 @@ def get_dashboard(current_user: dict = Depends(get_current_client_admin)):
         
         org_id = current_user.get("organization_id")
         if not org_id:
-            raise HTTPException(status_code=400, detail="No organization assigned to this admin")
+            if current_user.get("role") == "super_admin":
+                org_id = "000000000000000000000000"
+            else:
+                raise HTTPException(status_code=400, detail="No organization assigned to this admin")
             
-        org = organizations_collection.find_one({"_id": ObjectId(org_id)})
-        if not org:
-            raise HTTPException(status_code=404, detail="Organization not found")
+        if org_id == "000000000000000000000000":
+            org = {"_id": org_id, "company_name": "Super Admin Test Org", "available_tokens": 0, "total_tokens": 0}
+        else:
+            org = organizations_collection.find_one({"_id": ObjectId(org_id)})
+            if not org:
+                raise HTTPException(status_code=404, detail="Organization not found")
             
         # Find all admins for this org
         admins = list(client_admins_collection.find({"organization_id": org_id}, {"password": 0}))
