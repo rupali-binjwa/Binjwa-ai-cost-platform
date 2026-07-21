@@ -10,11 +10,14 @@ class EmployeeCreate(BaseModel):
     password: str
     allocated_tokens: float = 0.0
 
+from typing import Optional
 
 class EmployeeUpdate(BaseModel):
-    name: str
-    email: EmailStr
-    phone: str
-    password: str
-    is_active: bool
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    password: Optional[str] = None
+    is_active: Optional[bool] = None
+    add_tokens: Optional[float] = None
+    platform: Optional[str] = None
 

@@ -83,10 +83,12 @@ def get_all_client_admins():
 
 
 from pydantic import BaseModel
+from typing import Optional
 
 class PlanRequest(BaseModel):
     plan_name: str
     plan_price: float
+    custom_platforms: Optional[list] = None
 
 @router.post("/request-plan")
 def request_plan(data: PlanRequest, current_user: dict = Depends(get_current_client_admin)):
@@ -112,6 +114,7 @@ def request_plan(data: PlanRequest, current_user: dict = Depends(get_current_cli
         "requested_by": current_user["email"],
         "plan_name": data.plan_name,
         "plan_price": data.plan_price,
+        "custom_platforms": data.custom_platforms,
         "status": "pending",
         "created_at": datetime.utcnow()
     }

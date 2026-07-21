@@ -163,13 +163,76 @@ def approve_plan(request_id: str, current_user: dict = Depends(get_current_super
     org_id = req["organization_id"]
     price = req["plan_price"]
     
+    current_org = organizations_collection.find_one({"_id": ObjectId(org_id)})
+    
+    custom_platforms = req.get("custom_platforms")
+    platform_ratios = {}
+    
+    platform_map = {
+        "Deepgram": "Deepgram (STT & TTS)",
+        "Cartesia": "Cartesia (TTS)",
+        "Vobiz Cloud": "Vobiz (Telecom)",
+        "AssemblyAI": "AssemblyAI (STT)",
+        "ElevenLabs": "ElevenLabs (TTS)",
+        "Play.ht": "Play.ht (TTS)",
+        "Murf": "Murf AI (TTS)",
+        "Murf AI": "Murf AI (TTS)",
+        "OpenRouter": "OpenRouter",
+        "Groq": "Groq",
+        "Google": "Google",
+        "OpenAI": "OpenAI"
+    }
+    
+    if custom_platforms and isinstance(custom_platforms, list) and len(custom_platforms) > 0:
+        ratio_per_platform = 1.0 / len(custom_platforms)
+        for p in custom_platforms:
+            mapped_p = platform_map.get(p, p)
+            # If multiple custom platforms map to the same base (unlikely but possible), accumulate ratio
+            platform_ratios[mapped_p] = platform_ratios.get(mapped_p, 0) + ratio_per_platform
+    else:
+        plan_name_upper = req.get("plan_name", "").upper()
+        if "ENTERPRISE" in plan_name_upper or "PRO" in plan_name_upper or "GROWTH" in plan_name_upper:
+            platform_ratios = {
+                "Groq": 0.30,
+                "Cartesia (TTS)": 0.25,
+                "Deepgram (STT & TTS)": 0.25,
+                "Vobiz (Telecom)": 0.10,
+                "OpenRouter": 0.10
+            }
+        elif "ESSENTIAL" in plan_name_upper:
+            platform_ratios = {
+                "Vobiz (Telecom)": 0.60,
+                "OpenRouter": 0.40
+            }
+        else:
+            platform_ratios = {
+                "Vobiz (Telecom)": 1.0
+            }
+
     # 1. Update Organization Budget and Active Plan
+    inc_query = {"total_tokens": price, "available_tokens": price}
+    for platform, ratio in platform_ratios.items():
+        inc_query[f"platform_balances.{platform}"] = price * ratio
+
+    current_plan_str = current_org.get("active_plan", "") if current_org else ""
+    new_plan_str = req.get("plan_name", "Unknown Plan")
+
+    set_query = {}
+    
+    # Append the new plan if it isn't already active
+    if new_plan_str not in current_plan_str:
+        if current_plan_str:
+            set_query["active_plan"] = f"{current_plan_str}, {new_plan_str}"
+        else:
+            set_query["active_plan"] = new_plan_str
+
+    update_query = {"$inc": inc_query}
+    if set_query:
+        update_query["$set"] = set_query
+
     organizations_collection.update_one(
         {"_id": ObjectId(org_id)},
-        {
-            "$inc": {"total_tokens": price, "available_tokens": price},
-            "$set": {"active_plan": req.get("plan_name", "Unknown Plan")}
-        }
+        update_query
     )
     
     # 2. Mark request approved
@@ -178,28 +241,6 @@ def approve_plan(request_id: str, current_user: dict = Depends(get_current_super
         {"$set": {"status": "approved"}}
     )
     
-    # 3. Deduct from platform wallets proportionally based on the plan
-    plan_name_upper = req.get("plan_name", "").upper()
-    
-    platform_ratios = {}
-    if "ENTERPRISE" in plan_name_upper or "PRO" in plan_name_upper or "GROWTH" in plan_name_upper:
-        platform_ratios = {
-            "Groq (LLM)": 0.30,
-            "Cartesia (TTS)": 0.25,
-            "Deepgram (STT & TTS)": 0.25,
-            "Vobiz (Telecom)": 0.10,
-            "OpenRouter": 0.10
-        }
-    elif "ESSENTIAL" in plan_name_upper:
-        platform_ratios = {
-            "Vobiz (Telecom)": 0.60,
-            "OpenRouter": 0.40
-        }
-    else:
-        platform_ratios = {
-            "Vobiz (Telecom)": 1.0
-        }
-
     target_wallets = list(platform_wallets_collection.find({"platform": {"$in": list(platform_ratios.keys())}}))
     if target_wallets:
         for w in target_wallets:

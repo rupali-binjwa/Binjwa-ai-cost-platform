@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = `http://${window.location.hostname}:8000`;
 
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem('access_token');
@@ -18,7 +18,7 @@ async function request(endpoint, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !endpoint.includes('/auth/login')) {
       localStorage.clear();
       window.location.href = '/login';
     }
@@ -36,9 +36,9 @@ export const authAPI = {
     method: 'POST',
     body: JSON.stringify({ company_name, email, phone, password }),
   }),
-  setupPassword: (email, password) => request('/auth/setup-password', {
+  setupPassword: (email, password, company_name, phone) => request('/auth/setup-password', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, company_name, phone }),
   }),
 };
 
@@ -60,9 +60,9 @@ export const clientAdminAPI = {
   getAdmins: () => request('/client-admin/all'),
   getDashboard: () => request('/client-admin/dashboard'),
   getPlanRequest: () => request('/client-admin/my-plan-request'),
-  requestPlan: (plan_name, plan_price) => request('/client-admin/request-plan', {
+  requestPlan: (plan_name, plan_price, custom_platforms) => request('/client-admin/request-plan', {
     method: 'POST',
-    body: JSON.stringify({ plan_name, plan_price }),
+    body: JSON.stringify({ plan_name, plan_price, custom_platforms }),
   }),
   createAdmin: (adminData) => request('/client-admin/create', {
     method: 'POST',
@@ -77,6 +77,10 @@ export const employeeAPI = {
   getEmployee: (id) => request(`/employee/${id}`),
   createEmployee: (empData) => request('/employee/create', {
     method: 'POST',
+    body: JSON.stringify(empData),
+  }),
+  updateEmployee: (id, empData) => request(`/employee/${id}`, {
+    method: 'PUT',
     body: JSON.stringify(empData),
   }),
 };
@@ -114,5 +118,12 @@ export const recommendationAPI = {
   evaluateVendors: (reqData) => request('/recommendations/evaluate-vendors', {
     method: 'POST',
     body: JSON.stringify(reqData),
+  }),
+};
+
+export const chatAPI = {
+  sendMessage: (chatData) => request('/chat/completions', {
+    method: 'POST',
+    body: JSON.stringify(chatData),
   }),
 };

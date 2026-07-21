@@ -1138,7 +1138,7 @@ export default function SuperAdminPricing() {
 
 # Simply change the base_url to Binjwa Gateway and pass your API Key!
 client = OpenAI(
-    base_url="http://localhost:8000/gateway/v1",
+      base_url="http://${window.location.hostname}:8000/gateway/v1",
     api_key="bj_live_gateway_secret_key"
 )
 
@@ -1146,13 +1146,13 @@ response = client.chat.completions.create(
     model="auto-smart-router", # Or specify exact model e.g. "claude-3-haiku"
     messages=[{"role": "user", "content": "Handle customer calling support inquiry..."}]
 )
-print(response.choices[0].message.content)`}
+print(response.choices[0].message.content)\`}
           </pre>
 
           <h4 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>2. Node.js / ElevenLabs Voice AI Agent Webhook</h4>
           <pre style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', color: 'var(--text-muted)', overflowX: 'auto', fontSize: '0.9rem', fontFamily: 'monospace' }}>
-{`// Configure your Voice Calling Bot (ElevenLabs / Vobiz / Vapi) to route through Binjwa
-const response = await fetch("http://localhost:8000/gateway/v1/voice/completion", {
+{\`// Configure your Voice Calling Bot (ElevenLabs / Vobiz / Vapi) to route through Binjwa
+const response = await fetch("http://\${window.location.hostname}:8000/gateway/v1/voice/completion", {
   method: "POST",
   headers: {
     "Authorization": "Bearer bj_live_gateway_secret_key",

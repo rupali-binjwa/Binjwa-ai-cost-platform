@@ -17,11 +17,12 @@ def predict_cost(data: RecommendationRequest):
     # Fallback default catalog if database models not seeded yet
     if not models:
         models = [
-            {"model_name": "DeepSeek V3", "provider": "DeepSeek", "input_cost_per_1k": 0.00014, "output_cost_per_1k": 0.00028, "_id": "64b1"},
-            {"model_name": "Claude 3 Haiku", "provider": "Anthropic", "input_cost_per_1k": 0.00025, "output_cost_per_1k": 0.00125, "_id": "64b2"},
-            {"model_name": "Llama 3 8B", "provider": "Meta / OpenRouter", "input_cost_per_1k": 0.00010, "output_cost_per_1k": 0.00010, "_id": "64b3"},
-            {"model_name": "Claude 3.5 Sonnet", "provider": "Anthropic", "input_cost_per_1k": 0.00300, "output_cost_per_1k": 0.01500, "_id": "64b4"},
-            {"model_name": "GPT-4o", "provider": "OpenAI", "input_cost_per_1k": 0.00500, "output_cost_per_1k": 0.01500, "_id": "64b5"}
+            {"model_name": "GPT-4o", "provider": "OpenAI", "input_cost_per_1k": 0.00500, "output_cost_per_1k": 0.01500, "_id": "64b1"},
+            {"model_name": "GPT-4o Mini", "provider": "OpenAI", "input_cost_per_1k": 0.00015, "output_cost_per_1k": 0.00060, "_id": "64b2"},
+            {"model_name": "Gemini 1.5 Pro", "provider": "Google", "input_cost_per_1k": 0.00350, "output_cost_per_1k": 0.01050, "_id": "64b3"},
+            {"model_name": "Gemini 1.5 Flash", "provider": "Google", "input_cost_per_1k": 0.000075, "output_cost_per_1k": 0.00030, "_id": "64b4"},
+            {"model_name": "Llama 3 70B", "provider": "Groq", "input_cost_per_1k": 0.00059, "output_cost_per_1k": 0.00079, "_id": "64b5"},
+            {"model_name": "Llama 3 8B", "provider": "Groq", "input_cost_per_1k": 0.00005, "output_cost_per_1k": 0.00008, "_id": "64b6"}
         ]
 
     # Simple heuristic: 1 token is roughly 4 characters
@@ -161,12 +162,12 @@ def evaluate_vendors(data: EvaluateVendorsRequest, current_user: dict = Depends(
 
     # LLM Models Catalog
     all_models_catalog = [
-        {"id": "llama-3-70b", "name": "Llama 3 70B", "provider": "Groq", "input_cost": 0.0007, "output_cost": 0.0008, "latency": 120, "context": "8k", "strength": "Voice Agent Core Logic", "badge": "Active Voice Engine"},
-        {"id": "llama-3-8b", "name": "Llama 3 8B", "provider": "Groq", "input_cost": 0.0001, "output_cost": 0.0001, "latency": 80, "context": "8k", "strength": "Ultra-Fast Edge Queries", "badge": "Fastest"},
         {"id": "gpt-4o", "name": "GPT-4o", "provider": "OpenAI", "input_cost": 0.005, "output_cost": 0.015, "latency": 450, "context": "128k", "strength": "Universal Intelligence", "badge": "Flagship"},
         {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "provider": "OpenAI", "input_cost": 0.00015, "output_cost": 0.0006, "latency": 300, "context": "128k", "strength": "Cost-Effective Conversational AI", "badge": "Popular"},
-        {"id": "claude-3-5-sonnet", "name": "Claude 3.5 Sonnet", "provider": "Anthropic", "input_cost": 0.003, "output_cost": 0.015, "latency": 420, "context": "200k", "strength": "Complex Logic & Flow", "badge": "Top Accuracy"},
-        {"id": "mistral-large", "name": "Mistral Large 2", "provider": "Mistral API / Together AI", "input_cost": 0.002, "output_cost": 0.006, "latency": 380, "context": "128k", "strength": "Fast & Open-Source Similar to Groq", "badge": "Open-Source Alternative"}
+        {"id": "gemini-1-5-pro", "name": "Gemini 1.5 Pro", "provider": "Google", "input_cost": 0.0035, "output_cost": 0.0105, "latency": 420, "context": "1M", "strength": "Complex Logic & Huge Context", "badge": "Top Accuracy"},
+        {"id": "gemini-1-5-flash", "name": "Gemini 1.5 Flash", "provider": "Google", "input_cost": 0.000075, "output_cost": 0.0003, "latency": 250, "context": "1M", "strength": "Fast & Light AI", "badge": "Fastest AI"},
+        {"id": "llama-3-70b", "name": "Llama 3 70B", "provider": "Groq", "input_cost": 0.00059, "output_cost": 0.00079, "latency": 120, "context": "8k", "strength": "Voice Agent Core Logic", "badge": "Active Voice Engine"},
+        {"id": "llama-3-8b", "name": "Llama 3 8B", "provider": "Groq", "input_cost": 0.00005, "output_cost": 0.00008, "latency": 80, "context": "8k", "strength": "Ultra-Fast Edge Queries", "badge": "Fastest"}
     ]
 
     llm_results = []

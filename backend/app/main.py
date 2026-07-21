@@ -10,6 +10,7 @@ from app.services.seed_service import create_super_admin
 from app.api.token import router as token_router
 from app.api.usage_log import router as usage_log_router
 from app.api.recommendation import router as recommendation_router
+from app.api.chat import router as chat_router
 
 app = FastAPI(
     title="Binjwa AI Cost Platform",
@@ -34,6 +35,7 @@ app.include_router(models_router)
 app.include_router(token_router)
 app.include_router(usage_log_router)
 app.include_router(recommendation_router)
+app.include_router(chat_router)
 
 
 # Startup Event

@@ -87,9 +87,14 @@ def create_usage_log(data: UsageLogCreate):
 # ==========================
 # Get All Usage Logs
 # ==========================
-@router.get("/all", dependencies=[Depends(get_current_user)])
-def get_all_usage_logs():
-    usage_logs = list(usage_logs_collection.find())
+@router.get("/all")
+def get_all_usage_logs(current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") == "super_admin":
+        usage_logs = list(usage_logs_collection.find())
+    else:
+        org_id = current_user.get("organization_id")
+        usage_logs = list(usage_logs_collection.find({"organization_id": org_id}))
+        
     for log in usage_logs:
         log["_id"] = str(log["_id"])
     return {

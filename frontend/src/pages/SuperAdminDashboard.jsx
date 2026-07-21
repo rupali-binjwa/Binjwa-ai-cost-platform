@@ -186,7 +186,16 @@ export default function SuperAdminDashboard() {
                 <tr key={req._id}>
                   <td><strong>{req.company_name || organizations.find(o => o._id === req.organization_id)?.company_name || 'Unknown'}</strong></td>
                   <td>{req.requested_by || 'Admin'}</td>
-                  <td><span className="badge" style={{ background: 'var(--accent)', color: 'white' }}>{req.plan_name}</span></td>
+                  <td>
+                    <span className="badge" style={{ background: 'var(--accent)', color: 'white', display: 'inline-block', marginBottom: '4px' }}>{req.plan_name}</span>
+                    {req.custom_platforms && req.custom_platforms.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {req.custom_platforms.map(p => (
+                          <span key={p} className="badge" style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', color: 'var(--text-main)' }}>{p}</span>
+                        ))}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(req.plan_price || 0, 2)}</td>
                   <td>
                     <button className="btn" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }} onClick={() => handleApprovePlan(req._id)}>

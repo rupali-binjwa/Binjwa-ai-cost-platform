@@ -38,38 +38,45 @@ def create_super_admin():
     if ai_models_collection.count_documents({}) == 0:
         default_models = [
             {
-                "model_name": "GPT-4o (OpenAI)",
+                "model_name": "GPT-4o",
                 "provider": "OpenAI",
                 "input_cost_per_1k": 0.005,
                 "output_cost_per_1k": 0.015,
                 "is_active": True
             },
             {
-                "model_name": "Claude 3.5 Sonnet",
-                "provider": "Anthropic",
-                "input_cost_per_1k": 0.003,
-                "output_cost_per_1k": 0.015,
+                "model_name": "GPT-4o Mini",
+                "provider": "OpenAI",
+                "input_cost_per_1k": 0.00015,
+                "output_cost_per_1k": 0.0006,
                 "is_active": True
             },
             {
-                "model_name": "Claude 3 Haiku",
-                "provider": "Anthropic",
-                "input_cost_per_1k": 0.00025,
-                "output_cost_per_1k": 0.00125,
+                "model_name": "Gemini 1.5 Pro",
+                "provider": "Google",
+                "input_cost_per_1k": 0.0035,
+                "output_cost_per_1k": 0.0105,
                 "is_active": True
             },
             {
-                "model_name": "ElevenLabs Voice AI Agent",
-                "provider": "ElevenLabs",
-                "input_cost_per_1k": 0.008,
-                "output_cost_per_1k": 0.024,
+                "model_name": "Gemini 1.5 Flash",
+                "provider": "Google",
+                "input_cost_per_1k": 0.000075,
+                "output_cost_per_1k": 0.0003,
                 "is_active": True
             },
             {
-                "model_name": "Llama 3 70B (OpenRouter)",
-                "provider": "Meta / OpenRouter",
-                "input_cost_per_1k": 0.0007,
-                "output_cost_per_1k": 0.0008,
+                "model_name": "Llama 3 70B",
+                "provider": "Groq",
+                "input_cost_per_1k": 0.00059,
+                "output_cost_per_1k": 0.00079,
+                "is_active": True
+            },
+            {
+                "model_name": "Llama 3 8B",
+                "provider": "Groq",
+                "input_cost_per_1k": 0.00005,
+                "output_cost_per_1k": 0.00008,
                 "is_active": True
             }
         ]
@@ -85,8 +92,11 @@ def create_super_admin():
             "company_phone": "+91 9876543210",
             "address": "Tech Park, Indore",
             "markup_percentage": 20.0,
-            "total_tokens": 5000000,
-            "available_tokens": 3800000,
+            "platform_balances": {
+                "Groq": 5000000,
+                "Google": 2000000,
+                "OpenAI": 1000000
+            },
             "status": True
         }
         org_result = organizations_collection.insert_one(org_data)
@@ -127,6 +137,11 @@ def create_super_admin():
             "phone": "+91 9876543212",
             "password": hashed_pwd,
             "role": "employee",
+            "platform_allocations": {
+                "Groq": {"allocated": 1000000, "available": 800000},
+                "Google": {"allocated": 500000, "available": 500000},
+                "OpenAI": {"allocated": 200000, "available": 100000}
+            },
             "is_active": True
         })
         emp_id = str(emp_result.inserted_id)
@@ -184,9 +199,9 @@ def create_super_admin():
     # 6. Seed Platform Wallets for Super Admin
     if platform_wallets_collection.count_documents({}) == 0:
         wallets = [
-            {"platform": "Groq (LLM)", "balance": 5000.00, "status": "Active"},
-            {"platform": "OpenAI (LLM & STT)", "balance": 2500.00, "status": "Active"},
-            {"platform": "Anthropic (LLM)", "balance": 1200.00, "status": "Active"},
+            {"platform": "Groq", "balance": 5000.00, "status": "Active"},
+            {"platform": "Google", "balance": 2500.00, "status": "Active"},
+            {"platform": "OpenAI", "balance": 1200.00, "status": "Active"},
             {"platform": "Deepgram (STT & TTS)", "balance": 1500.00, "status": "Active"},
             {"platform": "AssemblyAI (STT)", "balance": 800.00, "status": "Active"},
             {"platform": "Cartesia (TTS)", "balance": 850.50, "status": "Active"},

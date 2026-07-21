@@ -139,15 +139,19 @@ def login(user: LoginRequest):
         "organization_id": org_id
     }
 from pydantic import BaseModel
+from typing import Optional
 class SetupPasswordRequest(BaseModel):
     email: str
     password: str
+    company_name: Optional[str] = None
+    phone: Optional[str] = None
 
 @router.post("/setup-password")
 def setup_password(data: SetupPasswordRequest):
     import re
-    from app.database.collections import client_admins_collection, employees_collection, users_collection
+    from app.database.collections import client_admins_collection, employees_collection, users_collection, organizations_collection
     from app.core.security import hash_password
+    from bson import ObjectId
 
     email = data.email.strip()
     email_regex = {"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}}
@@ -171,6 +175,20 @@ def setup_password(data: SetupPasswordRequest):
         raise HTTPException(status_code=400, detail="Password already setup. Please login.")
 
     hashed = hash_password(data.password)
-    collection_used.update_one({"_id": db_user["_id"]}, {"$set": {"password": hashed}})
+    update_data = {"password": hashed}
+    
+    if data.phone:
+        update_data["phone"] = data.phone
+        
+    if collection_used == client_admins_collection and data.company_name:
+        org_id = db_user.get("organization_id")
+        if org_id:
+            organizations_collection.update_one(
+                {"_id": ObjectId(org_id)},
+                {"$set": {"company_name": data.company_name}}
+            )
+            update_data["name"] = data.company_name + " Admin"
+
+    collection_used.update_one({"_id": db_user["_id"]}, {"$set": update_data})
 
     return {"message": "Password setup successfully. You can now login."}

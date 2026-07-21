@@ -96,10 +96,13 @@ def create_employee(data: EmployeeCreate):
         "message": "Employee Created Successfully",
         "employee_id": str(result.inserted_id)
     }
-@router.get("/all", dependencies=[Depends(get_current_employee)])
-def get_all_employees():
-
-    employees = list(employees_collection.find())
+@router.get("/all")
+def get_all_employees(current_user: dict = Depends(get_current_employee)):
+    if current_user.get("role") == "super_admin":
+        employees = list(employees_collection.find())
+    else:
+        org_id = current_user.get("organization_id")
+        employees = list(employees_collection.find({"organization_id": org_id}))
 
     for employee in employees:
         employee["_id"] = str(employee["_id"])
@@ -138,19 +141,72 @@ def update_employee(employee_id: str, data: EmployeeUpdate):
             status_code=404,
             detail="Employee not found"
         )
+        
+    org_id = employee.get("organization_id")
 
-    employees_collection.update_one(
-        {"_id": ObjectId(employee_id)},
-        {
-            "$set": {
-                "name": data.name,
-                "email": data.email,
-                "phone": data.phone,
-                "password": hash_password(data.password) if data.password else employee.get("password"),
-                "is_active": data.is_active
-            }
-        }
-    )
+    # Handle token addition
+    if data.add_tokens and data.add_tokens > 0 and data.platform:
+        organization = organizations_collection.find_one({"_id": ObjectId(org_id)})
+        if not organization:
+            raise HTTPException(status_code=404, detail="Organization not found")
+            
+        platform = data.platform
+        platform_balances = organization.get("platform_balances", {})
+        
+        if platform_balances.get(platform, 0) < data.add_tokens:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Organization does not have enough available tokens for platform {platform}."
+            )
+            
+        # Convert dollar budget (add_tokens) into raw tokens based on platform cost
+        from app.database.mongodb import db
+        model = None
+        for m in db["ai_models"].find():
+            m_prov = m.get("provider", "")
+            if platform.lower() in m_prov.lower() or platform.split(' ')[0].lower() in m_prov.lower():
+                model = m
+                break
+                
+        tokens_to_add = data.add_tokens
+        if model:
+            input_cost = model.get("input_cost_per_1k", 0)
+            output_cost = model.get("output_cost_per_1k", 0)
+            avg_cost_per_token = ((input_cost + output_cost) / 2) / 1000.0
+            if avg_cost_per_token > 0:
+                tokens_to_add = int(data.add_tokens / avg_cost_per_token)
+        else:
+            # Fallback for unknown platforms: assume 1 dollar = 100,000 tokens
+            tokens_to_add = int(data.add_tokens * 100000)
+
+        # Deduct from organization platform balance
+        organizations_collection.update_one(
+            {"_id": ObjectId(org_id)},
+            {"$inc": {f"platform_balances.{platform}": -data.add_tokens}}
+        )
+        
+        # Add actual RAW TOKENS to employee platform allocations
+        employees_collection.update_one(
+            {"_id": ObjectId(employee_id)},
+            {"$inc": {
+                f"platform_allocations.{platform}.available": tokens_to_add,
+                f"platform_allocations.{platform}.allocated": tokens_to_add
+            }}
+        )
+
+    # Handle other fields
+    update_data = {}
+    if data.name is not None: update_data["name"] = data.name
+    if data.email is not None: update_data["email"] = data.email
+    if data.phone is not None: update_data["phone"] = data.phone
+    if data.password is not None: update_data["password"] = hash_password(data.password)
+    if data.is_active is not None: update_data["is_active"] = data.is_active
+
+    if update_data:
+        employees_collection.update_one(
+            {"_id": ObjectId(employee_id)},
+            {"$set": update_data}
+        )
 
     return {
         "message": "Employee Updated Successfully"

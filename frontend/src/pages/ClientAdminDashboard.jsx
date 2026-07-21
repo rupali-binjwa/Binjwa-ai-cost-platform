@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { superAdminAPI, clientAdminAPI, employeeAPI, modelsAPI, recommendationAPI } from '../services/api';
+import { superAdminAPI, clientAdminAPI, employeeAPI, modelsAPI, recommendationAPI, usageLogAPI } from '../services/api';
 import { useCurrency } from '../context/CurrencyContext';
 import { Building2, Users, Database, TrendingUp, CheckCircle, Code, ShieldCheck, Activity, Plus, RefreshCw, Terminal, PhoneCall, MessageSquare } from 'lucide-react';
 
@@ -9,8 +9,9 @@ export default function ClientAdminDashboard() {
   const [models, setModels] = useState([]);
   const [telemetry, setTelemetry] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('comparison'); // 'comparison' | 'telemetry' | 'integrations' | 'employees'
-  
+  const [activeTab, setActiveTab] = useState('analytics'); // 'comparison' | 'analytics'
+  const [logs, setLogs] = useState([]);
+
   // Multi-Plan & Multi-Modal Infrastructure Selection State
   const [selectedPlans, setSelectedPlans] = useState([
     'bulk_ivr', 'multi_level_ivr', 'press_1_transfer', 'call_recording', 'real_time_crm_reports',
@@ -41,9 +42,16 @@ export default function ClientAdminDashboard() {
   // Modal for new employee
   const [showEmpModal, setShowEmpModal] = useState(false);
   const [showPlanModal, setShowPlanModal] = useState(false);
-  const [empForm, setEmpForm] = useState({ name: '', email: '', phone: '', password: 'Password@123', allocated_tokens: 0 });
+  const [showCustomizePlanModal, setShowCustomizePlanModal] = useState(false);
+  const [pendingPlanTier, setPendingPlanTier] = useState(null);
+  const [selectedCustomPlatforms, setSelectedCustomPlatforms] = useState([]);
+  const [showAddTokenModal, setShowAddTokenModal] = useState(false);
+  const [selectedEmpId, setSelectedEmpId] = useState(null);
+  const [addTokenAmount, setAddTokenAmount] = useState(0);
+  const [selectedTokenPlatform, setSelectedTokenPlatform] = useState('Groq');
+  const [empForm, setEmpForm] = useState({ name: '', email: '', phone: '', password: 'Password@123' });
   const [msg, setMsg] = useState({ type: '', text: '' });
-  const { formatCurrency } = useCurrency();
+  const { formatCurrency, currency, EXCHANGE_RATES } = useCurrency();
 
   const storedOrgId = localStorage.getItem('organization_id');
   const storedUserId = localStorage.getItem('user_id');
@@ -140,9 +148,9 @@ export default function ClientAdminDashboard() {
     }
   };
 
-  
 
-  
+
+
   useEffect(() => {
     const fetchVendorData = async () => {
       setFetchingVendors(true);
@@ -159,7 +167,7 @@ export default function ClientAdminDashboard() {
           ttsVendors: res.tts_vendors || [],
           telecomVendors: res.telecom_vendors || []
         });
-        
+
         // Auto-select the recommended model
         const recommended = (res.llm_models || []).find(m => m.is_top);
         if (recommended && selectedRecommendedModel !== recommended.name) {
@@ -187,15 +195,16 @@ export default function ClientAdminDashboard() {
     setLoading(true);
     setMsg({ type: '', text: '' });
     try {
-      const [dashRes, planRes, empsRes, modelsRes] = await Promise.all([
+      const [dashRes, planRes, empsRes, modelsRes, logsRes] = await Promise.all([
         clientAdminAPI.getDashboard().catch(() => null),
         clientAdminAPI.getPlanRequest().catch(() => ({ status: 'none' })),
         employeeAPI.getEmployees().catch(() => ({ employees: [] })),
-        modelsAPI.getAllModels().catch(() => ({ models: [] }))
+        modelsAPI.getAllModels().catch(() => ({ models: [] })),
+        usageLogAPI.getAllLogs().catch(() => ({ usage_logs: [] }))
       ]);
 
       if (dashRes) setDashboardData(dashRes);
-      
+
       setPlanStatus(planRes.status);
       if (planRes.status === 'pending') {
         setPendingPlanName(planRes.plan_name);
@@ -203,7 +212,8 @@ export default function ClientAdminDashboard() {
 
       setEmployees(empsRes && empsRes.employees ? empsRes.employees : []);
       setModels(modelsRes && modelsRes.models ? modelsRes.models : []);
-      
+      setLogs(logsRes && logsRes.usage_logs ? logsRes.usage_logs : []);
+
       // Auto-analyze telemetry
       if (dashRes && dashRes.organization) {
         recommendationAPI.autoAnalyze(dashRes.organization._id)
@@ -218,9 +228,9 @@ export default function ClientAdminDashboard() {
     }
   };
 
-  const handleRequestPlan = async (name, price) => {
+  const handleRequestPlan = async (name, price, platforms = []) => {
     try {
-      await clientAdminAPI.requestPlan(name, price);
+      await clientAdminAPI.requestPlan(name, price, platforms);
       setPlanStatus('pending');
       setPendingPlanName(name);
       alert("Plan requested successfully!");
@@ -229,50 +239,19 @@ export default function ClientAdminDashboard() {
     }
   };
 
-  // If budget is 0, show the plan selection screen
-  if (!loading && dashboardData && dashboardData.available_tokens === 0) {
-    return (
-      <div className="layout">
-        <div className="main-content" style={{ padding: '2rem', paddingLeft: '2rem', width: '100%' }}>
-           {planStatus === 'pending' && (
-             <div style={{ padding: '1rem', borderRadius: '12px', marginBottom: '2rem', background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', color: '#fcd34d', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-               <span><strong>Pending Approval:</strong> You have requested the {pendingPlanName}. Please wait for the Super Admin to approve.</span>
-               <button className="btn btn-secondary" onClick={fetchData}>Refresh Status</button>
-             </div>
-           )}
-           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-              <h1 style={{ fontSize: '2rem', textAlign: 'center', flex: 1, margin: 0 }}>Select a Subscription Plan</h1>
-           </div>
-           <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-              {bundleTiers.map(tier => (
-                 <div key={tier.id} className="card" style={{ textAlign: 'center', padding: '1.5rem', border: `1px solid ${tier.color}` }}>
-                    <h3 style={{ fontSize: '1.1rem' }}>{tier.name}</h3>
-                    <h2 style={{ fontSize: '1.8rem', margin: '1rem 0', color: tier.color }}>{formatCurrency(tier.price, 0)}</h2>
-                    <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>{tier.description}</p>
-                    {dashboardData?.organization?.active_plan === tier.name ? (
-                       <button className="btn" style={{ width: '100%', background: 'var(--success)', cursor: 'default' }} disabled>Active Plan</button>
-                    ) : (
-                       <button className="btn" style={{ width: '100%' }} onClick={() => handleRequestPlan(tier.name, tier.price)}>Request Plan</button>
-                    )}
-                 </div>
-              ))}
-           </div>
-        </div>
-      </div>
-    );
-  }
 
 
   const handleAddEmployee = async (e) => {
     e.preventDefault();
     setMsg({ type: '', text: '' });
-    
+
     if (!dashboardData || !dashboardData.organization) {
       setMsg({ type: 'error', text: 'No organization available to attach employee.' });
       return;
     }
 
     try {
+      const rate = EXCHANGE_RATES[currency].rate;
       await employeeAPI.createEmployee({
         organization_id: dashboardData.organization._id,
         client_admin_id: dashboardData.organization._id, // Fallback
@@ -280,7 +259,7 @@ export default function ClientAdminDashboard() {
         email: empForm.email,
         phone: empForm.phone,
         password: empForm.password,
-        allocated_tokens: parseFloat(empForm.allocated_tokens) || 0
+        allocated_tokens: (parseFloat(empForm.allocated_tokens) || 0) / rate
       });
       setMsg({ type: 'success', text: 'Employee added successfully!' });
       setShowEmpModal(false);
@@ -291,6 +270,31 @@ export default function ClientAdminDashboard() {
     }
   };
 
+  const handleAddTokens = async (e) => {
+    e.preventDefault();
+    setMsg({ type: '', text: '' });
+    
+    if (!selectedEmpId || addTokenAmount <= 0) {
+      setMsg({ type: 'error', text: 'Please enter a valid token amount.' });
+      return;
+    }
+
+    try {
+      const rate = EXCHANGE_RATES[currency].rate;
+      await employeeAPI.updateEmployee(selectedEmpId, {
+        add_tokens: parseFloat(addTokenAmount) / rate,
+        platform: selectedTokenPlatform
+      });
+      setMsg({ type: 'success', text: `Successfully added ${addTokenAmount} tokens to the employee!` });
+      setShowAddTokenModal(false);
+      setAddTokenAmount(0);
+      setSelectedEmpId(null);
+      fetchData(); // Refresh UI balances
+    } catch (err) {
+      setMsg({ type: 'error', text: err.message || 'Error adding tokens.' });
+    }
+  };
+
   const currentOrg = dashboardData ? dashboardData.organization : {};
   const totalTokens = dashboardData ? dashboardData.total_tokens : 0;
   const availableTokens = dashboardData ? dashboardData.available_tokens : 0;
@@ -298,25 +302,13 @@ export default function ClientAdminDashboard() {
 
   // Calculate platform allocation based exactly on super_admin.py deduction logic
   const planNameUpper = (currentOrg.active_plan || '').toUpperCase();
-  let platformRatios = {};
-  if (planNameUpper.includes("ENTERPRISE") || planNameUpper.includes("PRO") || planNameUpper.includes("GROWTH")) {
-    platformRatios = {
-      "Groq (LLM)": 0.30,
-      "Cartesia (TTS)": 0.25,
-      "Deepgram (STT & TTS)": 0.25,
-      "Vobiz (Telecom)": 0.10,
-      "OpenRouter": 0.10
-    };
-  } else if (planNameUpper.includes("ESSENTIAL")) {
-    platformRatios = {
-      "Vobiz (Telecom)": 0.60,
-      "OpenRouter": 0.40
-    };
-  } else if (planNameUpper) {
-    platformRatios = {
-      "Vobiz (Telecom)": 1.0
-    };
+  let platformsToDisplay = {};
+
+  if (currentOrg.platform_balances && Object.keys(currentOrg.platform_balances).length > 0) {
+    platformsToDisplay = currentOrg.platform_balances;
   }
+
+  const totalPlatformAllocated = Object.values(platformsToDisplay).reduce((a, b) => a + b, 0) || 1;
 
   if (loading) {
     return (
@@ -336,11 +328,11 @@ export default function ClientAdminDashboard() {
             <span style={{ color: 'var(--text-muted)' }}>|</span>
             <span style={{ color: 'var(--text-main)', fontWeight: 600 }}>{currentOrg.company_name || 'Loading Organization...'}</span>
             <span style={{ color: 'var(--text-muted)' }}>|</span>
-            <span className={`badge ${currentOrg.active_plan ? 'success' : 'secondary'}`} style={{ 
-              fontSize: '0.75rem', 
-              background: currentOrg.active_plan ? 'var(--success)' : 'var(--bg-main)', 
-              color: currentOrg.active_plan ? 'white' : 'var(--text-muted)', 
-              border: currentOrg.active_plan ? 'none' : '1px solid var(--border)' 
+            <span className={`badge ${currentOrg.active_plan ? 'success' : 'secondary'}`} style={{
+              fontSize: '0.75rem',
+              background: currentOrg.active_plan ? 'var(--success)' : 'var(--bg-main)',
+              color: currentOrg.active_plan ? 'white' : 'var(--text-muted)',
+              border: currentOrg.active_plan ? 'none' : '1px solid var(--border)'
             }}>
               Active: {currentOrg.active_plan || 'Custom Plan'}
             </span>
@@ -386,7 +378,7 @@ export default function ClientAdminDashboard() {
           <div className="card-value">{formatCurrency(totalTokens, 0)}</div>
           <div className="mt-2" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Total contracted volume</div>
         </div>
-        
+
         <div className="card">
           <div className="card-title">
             <Activity size={20} color="var(--accent)" /> Tokens Consumed by Agents
@@ -408,49 +400,218 @@ export default function ClientAdminDashboard() {
 
       <h3 style={{ marginTop: '2rem', marginBottom: '1rem', color: 'var(--text-main)', fontSize: '1.25rem' }}>Available Platform Capacity</h3>
       <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', marginBottom: '2rem' }}>
-        {Object.entries(platformRatios).length > 0 ? Object.entries(platformRatios).map(([platform, ratio], idx) => {
+        {Object.entries(platformsToDisplay).length > 0 ? Object.entries(platformsToDisplay).map(([platform, balance], idx) => {
           let badgeColor = 'var(--primary)';
           let bg = 'rgba(99, 102, 241, 0.05)';
           if (platform.includes('Groq') || platform.includes('OpenRouter')) { badgeColor = 'var(--success)'; bg = 'rgba(16, 185, 129, 0.05)'; }
           if (platform.includes('Cartesia')) { badgeColor = 'var(--accent)'; bg = 'rgba(249, 115, 22, 0.05)'; }
           if (platform.includes('Deepgram')) { badgeColor = 'var(--warning)'; bg = 'rgba(245, 158, 11, 0.05)'; }
 
+          const percentage = ((balance / totalPlatformAllocated) * 100).toFixed(0);
+
           return (
             <div key={idx} className="card" style={{ padding: '1.5rem', background: bg, border: `1px solid ${badgeColor}33`, position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: `linear-gradient(90deg, ${badgeColor}, transparent)` }}></div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '8px' }}>{platform}</div>
               <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)' }}>
-                {formatCurrency(availableTokens * ratio, 0)}
+                {formatCurrency(balance, 0)}
               </div>
-              <div style={{ fontSize: '0.75rem', color: badgeColor, marginTop: '12px' }}>Allocated Platform Tokens ({(ratio * 100).toFixed(0)}%)</div>
+              <div style={{ fontSize: '0.75rem', color: badgeColor, marginTop: '12px' }}>Allocated Platform Tokens ({percentage}%)</div>
             </div>
           );
         }) : (
-           <div className="card" style={{ padding: '2rem', textAlign: 'center', gridColumn: '1 / -1', color: 'var(--text-muted)' }}>
-             No platform allocations active for this account.
-           </div>
+          <div className="card" style={{ padding: '2rem', textAlign: 'center', gridColumn: '1 / -1', color: 'var(--text-muted)' }}>
+            No platform allocations active for this account.
+          </div>
         )}
       </div>
 
       {/* Section Tabs */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem', flexWrap: 'wrap' }}>
-        <button 
+        <button
           className={`btn ${activeTab === 'comparison' ? '' : 'btn-secondary'}`}
           onClick={() => setActiveTab('comparison')}
           style={{ padding: '0.6rem 1.25rem' }}
         >
           <Activity size={18} /> LLM Model Comparison & Recommendations
         </button>
-
+        <button
+          className={`btn ${activeTab === 'analytics' ? '' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('analytics')}
+          style={{ padding: '0.6rem 1.25rem' }}
+        >
+          <Activity size={18} /> Usage Analytics
+        </button>
+        <button
+          className={`btn ${activeTab === 'employees' ? '' : 'btn-secondary'}`}
+          onClick={() => setActiveTab('employees')}
+          style={{ padding: '0.6rem 1.25rem' }}
+        >
+          <Users size={18} /> Manage Employees
+        </button>
       </div>
+
+      {/* Employees Tab */}
+      {activeTab === 'employees' && (
+        <div style={{ display: 'grid', gap: '2rem' }}>
+          <div className="card">
+            <div style={{ marginBottom: '1.25rem', fontSize: '1.25rem', fontWeight: 700, color: 'black', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Users color="var(--primary)" /> Employee Token Management
+            </div>
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Employee Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Allocated Tokens</th>
+                    <th>Available Tokens</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map(emp => {
+                    let totalAllocatedTokens = 0;
+                    let totalAvailableTokens = 0;
+                    
+                    if (emp.platform_allocations) {
+                      Object.values(emp.platform_allocations).forEach(data => {
+                        totalAllocatedTokens += (data.allocated || 0);
+                        totalAvailableTokens += (data.available || 0);
+                      });
+                    }
+
+                    return (
+                    <tr key={emp._id}>
+                      <td style={{ fontWeight: 600 }}>{emp.name}</td>
+                      <td>{emp.email}</td>
+                      <td><span className="badge primary" style={{ fontSize: '0.7rem' }}>{emp.role}</span></td>
+                      <td style={{ color: '#a5b4fc', fontWeight: 600 }}>{totalAllocatedTokens.toLocaleString()}</td>
+                      <td style={{ color: totalAvailableTokens > 0 ? 'var(--success)' : 'var(--danger)', fontWeight: 600 }}>
+                        {totalAvailableTokens.toLocaleString()}
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
+                          onClick={() => {
+                            setSelectedEmpId(emp._id);
+                            const availablePlatforms = Object.keys(platformsToDisplay || {});
+                            if (availablePlatforms.length > 0) {
+                              setSelectedTokenPlatform(availablePlatforms[0]);
+                            }
+                            setShowAddTokenModal(true);
+                          }}
+                        >
+                          <Plus size={14} /> Add Tokens
+                        </button>
+                      </td>
+                    </tr>
+                    );
+                  })}
+                  {employees.length === 0 && (
+                    <tr>
+                      <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No employees found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Analytics Tab */}
+      {activeTab === 'analytics' && (
+        <div style={{ display: 'grid', gap: '2rem' }}>
+          {/* User Level Analytics */}
+          <div className="card">
+            <div style={{ marginBottom: '1.25rem', fontSize: '1.25rem', fontWeight: 700, color: 'black', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Users color="var(--primary)" /> Token Usage by Employee
+            </div>
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Employee Name</th>
+                    <th>Email</th>
+                    <th>Tokens Consumed</th>
+                    <th>Total Cost ($)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map(emp => {
+                    const empLogs = logs.filter(l => l.employee_id === emp._id);
+                    const tTokens = empLogs.reduce((sum, l) => sum + (l.total_tokens || 0), 0);
+                    const tCost = empLogs.reduce((sum, l) => sum + (l.total_cost || 0), 0);
+                    return (
+                      <tr key={emp._id}>
+                        <td>{emp.name}</td>
+                        <td>{emp.email}</td>
+                        <td style={{ color: '#a5b4fc', fontWeight: 600 }}>{tTokens.toLocaleString()}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(tCost, 5)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Platform Level Analytics */}
+          <div className="card">
+            <div style={{ marginBottom: '1.25rem', fontSize: '1.25rem', fontWeight: 700, color: 'black', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Database color="black" /> Token Usage by Platform
+            </div>
+            <div className="table-container">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Platform</th>
+                    <th>Tokens Consumed</th>
+                    <th>Cost Consumed ($)</th>
+                    <th>Remaining Balance ($)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(dashboardData?.organization?.platform_balances || {}).map(([platform, balance]) => {
+                    // Try to match logs for this platform
+                    const platformLogs = logs.filter(l => {
+                       const mod = models.find(m => m._id === l.model_id);
+                       if (!mod) return false;
+                       // Simple heuristic to match platform string with provider
+                       return platform.toLowerCase().includes(mod.provider.toLowerCase()) || mod.provider.toLowerCase().includes(platform.toLowerCase().split(' ')[0]);
+                    });
+                    const tTokens = platformLogs.reduce((sum, l) => sum + (l.total_tokens || 0), 0);
+                    const tCost = platformLogs.reduce((sum, l) => sum + (l.total_cost || 0), 0);
+                    
+                    // Hide completely unused/unfunded platforms from the analytics table
+                    if (balance <= 0 && tTokens <= 0) return null;
+
+                    return (
+                      <tr key={platform}>
+                        <td style={{ fontWeight: 600, color: 'black' }}>{platform}</td>
+                        <td style={{ color: '#a5b4fc', fontWeight: 600 }}>{tTokens.toLocaleString()}</td>
+                        <td style={{ color: '#f472b6', fontWeight: 600 }}>{formatCurrency(tCost, 5)}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: 600 }}>{formatCurrency(balance, 5)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tab 0: LLM Model Comparison & Token Recommendation Engine */}
       {activeTab === 'comparison' && (
         <div>
           {/* Workload Simulator Banner */}
-          <div className="card" style={{ 
-            marginBottom: '2rem', 
-            border: '1px solid var(--border-color)', 
+          <div className="card" style={{
+            marginBottom: '2rem',
+            border: '1px solid var(--border-color)',
             background: 'linear-gradient(135deg, var(--bg-surface), rgba(15, 23, 42, 0.03))',
             boxShadow: 'var(--shadow-md)'
           }}>
@@ -480,9 +641,9 @@ export default function ClientAdminDashboard() {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '12px', marginBottom: '1rem' }}>
                 <div style={{ gridColumn: '1 / -1' }}>
-                  <select 
-                    className="input" 
-                    value={selectedBundleTier} 
+                  <select
+                    className="input"
+                    value={selectedBundleTier}
                     onChange={(e) => handleSelectBundleTier(e.target.value)}
                     style={{ width: '100%', fontSize: '1.05rem', fontWeight: 700, padding: '0.75rem 1rem', background: 'var(--bg-surface)', color: 'var(--text-main)', border: '2px solid #f97316', borderRadius: '10px', cursor: 'pointer' }}
                   >
@@ -503,7 +664,7 @@ export default function ClientAdminDashboard() {
                 {bundleTiers.map(b => {
                   const isCurrent = selectedBundleTier === b.id;
                   return (
-                    <div 
+                    <div
                       key={b.id}
                       onClick={() => handleSelectBundleTier(b.id)}
                       style={{
@@ -516,9 +677,9 @@ export default function ClientAdminDashboard() {
                         position: 'relative'
                       }}
                     >
-                      {isCurrent && (
-                        <div style={{ position: 'absolute', top: '-10px', right: '10px', background: b.color, color: 'var(--text-main)', fontSize: '0.65rem', fontWeight: 800, padding: '2px 8px', borderRadius: '10px' }}>
-                          ✓ ACTIVE TIER
+                      {((currentOrg?.active_plan || '').toUpperCase().includes(b.name.split(' ')[0].toUpperCase())) && (
+                        <div style={{ position: 'absolute', top: '-8px', right: '-8px', background: 'var(--success)', color: 'white', fontSize: '0.65rem', fontWeight: 'bold', padding: '3px 8px', borderRadius: '12px', boxShadow: '0 2px 5px rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                          Active Plan
                         </div>
                       )}
                       <div style={{ fontWeight: 800, color: isCurrent ? 'var(--accent)' : b.color, fontSize: '0.95rem', marginBottom: '4px' }}>
@@ -548,22 +709,22 @@ export default function ClientAdminDashboard() {
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <button 
-                    className="btn btn-primary" 
+                  <button
+                    className="btn btn-primary"
                     onClick={() => setShowPlanDropdown(!showPlanDropdown)}
                     style={{ fontSize: '0.82rem', padding: '0.45rem 1rem' }}
                   >
                     {showPlanDropdown ? '▲ Close Dropdown Menu' : '▼ Open Complete 20-Option Dropdown Menu'}
                   </button>
-                  <button 
-                    className="btn btn-secondary" 
+                  <button
+                    className="btn btn-secondary"
                     onClick={() => setSelectedPlans(planCatalog.map(p => p.id))}
                     style={{ fontSize: '0.78rem', padding: '0.45rem 0.8rem' }}
                   >
                     Select All 20
                   </button>
-                  <button 
-                    className="btn btn-secondary" 
+                  <button
+                    className="btn btn-secondary"
                     onClick={() => setSelectedPlans(['bulk_ivr', 'multi_level_ivr', 'ai_voice_calling_outbound', 'ai_call_transcript', 'whatsapp_auto_reply'])}
                     style={{ fontSize: '0.78rem', padding: '0.45rem 0.8rem' }}
                   >
@@ -588,12 +749,12 @@ export default function ClientAdminDashboard() {
                     {planCatalog.map(plan => {
                       const isSelected = selectedPlans.includes(plan.id);
                       return (
-                        <div 
+                        <div
                           key={plan.id}
                           onClick={() => togglePlanSelection(plan.id)}
-                          style={{ 
-                            padding: '0.65rem 0.9rem', 
-                            borderRadius: '8px', 
+                          style={{
+                            padding: '0.65rem 0.9rem',
+                            borderRadius: '8px',
                             cursor: 'pointer',
                             background: isSelected ? 'rgba(249, 115, 22, 0.08)' : 'var(--bg-surface)',
                             border: isSelected ? '1px solid var(--primary)' : '1px solid var(--border-color)',
@@ -603,10 +764,10 @@ export default function ClientAdminDashboard() {
                             transition: 'all 0.15s ease'
                           }}
                         >
-                          <input 
-                            type="checkbox" 
-                            checked={isSelected} 
-                            onChange={() => {}} 
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => { }}
                             style={{ accentColor: 'var(--primary)', width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}
                           />
                           <div style={{ flex: 1, minWidth: 0 }}>
@@ -627,16 +788,16 @@ export default function ClientAdminDashboard() {
               {/* Selected Pills Summary */}
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '1.25rem', maxHeight: showPlanDropdown ? '100px' : 'none', overflowY: 'auto' }}>
                 {planCatalog.filter(p => selectedPlans.includes(p.id)).map(plan => (
-                  <div 
+                  <div
                     key={plan.id}
                     onClick={() => togglePlanSelection(plan.id)}
-                    style={{ 
-                      padding: '0.4rem 0.85rem', 
-                      borderRadius: '20px', 
-                      background: 'rgba(15, 23, 42, 0.03)', 
-                      border: '1px solid #f97316', 
-                      color: 'var(--text-main)', 
-                      fontSize: '0.8rem', 
+                    style={{
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '20px',
+                      background: 'rgba(15, 23, 42, 0.03)',
+                      border: '1px solid #f97316',
+                      color: 'var(--text-main)',
+                      fontSize: '0.8rem',
                       fontWeight: 600,
                       display: 'flex',
                       alignItems: 'center',
@@ -673,7 +834,7 @@ export default function ClientAdminDashboard() {
                               <span>Monthly Telecom / IVR Call Sessions:</span>
                               <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{monthlyInteractions.toLocaleString()} Sessions</span>
                             </label>
-                            <input 
+                            <input
                               type="range" min="500" max="50000" step="500"
                               value={monthlyInteractions} onChange={e => setMonthlyInteractions(Number(e.target.value))}
                               style={{ width: '100%', accentColor: 'var(--primary)' }}
@@ -689,7 +850,7 @@ export default function ClientAdminDashboard() {
                               <span>⏱️ Average Call / Session Duration:</span>
                               <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{avgDurationMinutes.toFixed(1)} Minutes</span>
                             </label>
-                            <input 
+                            <input
                               type="range" min="1.0" max="10.0" step="0.5"
                               value={avgDurationMinutes} onChange={e => setAvgDurationMinutes(Number(e.target.value))}
                               style={{ width: '100%', accentColor: 'var(--text-main)' }}
@@ -710,7 +871,7 @@ export default function ClientAdminDashboard() {
                               <span>Monthly WhatsApp Messages / Alerts:</span>
                               <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{whatsappMonthlyMessages.toLocaleString()} Messages</span>
                             </label>
-                            <input 
+                            <input
                               type="range" min="1000" max="150000" step="1000"
                               value={whatsappMonthlyMessages} onChange={e => setWhatsappMonthlyMessages(Number(e.target.value))}
                               style={{ width: '100%', accentColor: '#10b981' }}
@@ -726,7 +887,7 @@ export default function ClientAdminDashboard() {
                               <span>🔄 Avg Turns / Messages per WhatsApp Chat:</span>
                               <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{whatsappAvgTurns} Turns</span>
                             </label>
-                            <input 
+                            <input
                               type="range" min="2" max="20" step="1"
                               value={whatsappAvgTurns} onChange={e => setWhatsappAvgTurns(Number(e.target.value))}
                               style={{ width: '100%', accentColor: '#10b981' }}
@@ -746,7 +907,7 @@ export default function ClientAdminDashboard() {
                             <span>Monthly CRM Reports & Lead Routing Triggers:</span>
                             <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{crmMonthlyEvents.toLocaleString()} Events</span>
                           </label>
-                          <input 
+                          <input
                             type="range" min="1000" max="100000" step="1000"
                             value={crmMonthlyEvents} onChange={e => setCrmMonthlyEvents(Number(e.target.value))}
                             style={{ width: '100%', accentColor: '#f59e0b' }}
@@ -758,24 +919,7 @@ export default function ClientAdminDashboard() {
                         </div>
                       )}
 
-                      {/* 4. AI Autonomous Voice & Meeting Booking Slider */}
-                      {showAiSliders && (
-                        <div style={{ background: 'rgba(15, 23, 42, 0.03)', padding: '1rem', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                          <label className="label" style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--primary)', fontWeight: 600, marginBottom: '6px' }}>
-                            <span>Autonomous AI Voice & Meeting Sessions:</span>
-                            <span style={{ color: 'var(--text-main)', fontWeight: 700 }}>{aiAutonomousSessions.toLocaleString()} AI Sessions</span>
-                          </label>
-                          <input 
-                            type="range" min="500" max="30000" step="500"
-                            value={aiAutonomousSessions} onChange={e => setAiAutonomousSessions(Number(e.target.value))}
-                            style={{ width: '100%', accentColor: '#ec4899' }}
-                          />
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                            <span>500 (Bot Pilot)</span>
-                            <span>30,000 (Full 24/7 AI Agent)</span>
-                          </div>
-                        </div>
-                      )}
+
                     </div>
                   </div>
                 );
@@ -812,9 +956,9 @@ export default function ClientAdminDashboard() {
             const ttsRate = hasNeuralVoice || hasAiVoice ? topTTS.rate : (hasVoice ? 0.0060 : 0); // ElevenLabs Turbo / Murf ($0.0150/min)
             const telecomRate = hasTelecom || hasVoice || hasAiVoice ? topTelecom.rate : 0; // Vobiz Trunking ($0.0070/min)
             const whatsappRate = hasWhatsApp ? 0.0045 : 0; // Meta Cloud API equivalent rate
-            
+
             // Itemized volume totals across active sliders
-            const callingMinutes = (hasTelecom || hasVoice ? monthlyInteractions * avgDurationMinutes : 0) + (hasAiVoice ? aiAutonomousSessions * avgDurationMinutes : 0);
+            const callingMinutes = (hasTelecom || hasVoice ? monthlyInteractions * avgDurationMinutes : 0);
             const sttTotal = callingMinutes * sttRate;
             const ttsTotal = callingMinutes * ttsRate;
             const telecomTotal = callingMinutes * telecomRate;
@@ -824,10 +968,9 @@ export default function ClientAdminDashboard() {
             // Capped unified LLM Gateway intelligence rate across active options
             // WhatsApp LLM cost = Conversations (whatsappMonthlyMessages) * Turns per Chat * 0.0015 per turn
             const singleLlmCost = topLLM.single_cost || 0.0015;
-            const llmTotal = (hasAiVoice ? aiAutonomousSessions * avgDurationMinutes * singleLlmCost * 2 : 0) + 
-                             (hasWhatsApp ? whatsappMonthlyMessages * whatsappAvgTurns * singleLlmCost : 0) + 
-                             (hasCrm ? crmMonthlyEvents * singleLlmCost : 0) + 
-                             (hasTelecom ? monthlyInteractions * singleLlmCost : 0);
+            const llmTotal = (hasWhatsApp ? whatsappMonthlyMessages * whatsappAvgTurns * singleLlmCost : 0) +
+              (hasCrm ? crmMonthlyEvents * singleLlmCost : 0) +
+              (hasTelecom ? monthlyInteractions * singleLlmCost : 0);
 
             const totalUnitRate = sttRate + ttsRate + telecomRate + whatsappRate + (hasCrm ? 0.0015 : 0) + 0.0030;
             const monthlyTotal = sttTotal + ttsTotal + telecomTotal + whatsappTotal + crmTotal + llmTotal;
@@ -837,11 +980,11 @@ export default function ClientAdminDashboard() {
             const savingsPercent = Math.round(((competitorMonthlyTotal - monthlyTotal) / (competitorMonthlyTotal || 1)) * 100);
 
             return (
-              <div style={{ 
-                background: 'linear-gradient(135deg, var(--bg-surface), rgba(249, 115, 22, 0.08))', 
-                border: '1px solid var(--border-color)', 
-                borderRadius: '16px', 
-                padding: '1.75rem', 
+              <div style={{
+                background: 'linear-gradient(135deg, var(--bg-surface), rgba(249, 115, 22, 0.08))',
+                border: '1px solid var(--border-color)',
+                borderRadius: '16px',
+                padding: '1.75rem',
                 marginBottom: '2rem',
                 boxShadow: 'var(--shadow-lg)'
               }}>
@@ -1150,8 +1293,8 @@ export default function ClientAdminDashboard() {
                                     #1 Recommended
                                   </span>
                                 ) : (
-                                  <button 
-                                    className="btn btn-secondary" 
+                                  <button
+                                    className="btn btn-secondary"
                                     onClick={() => setSelectedRecommendedModel(m.name)}
                                     style={{ fontSize: '0.75rem', padding: '0.3rem 0.7rem' }}
                                   >
@@ -1250,9 +1393,9 @@ export default function ClientAdminDashboard() {
           <div style={{ marginBottom: '2rem' }}>
             <label className="label" style={{ color: 'var(--text-main)', fontWeight: 600 }}>Your Organization Gateway API Key</label>
             <div style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" className="input" readOnly 
-                value={`bj_live_gateway_${currentOrg._id || '9a8b7c6d5e4f3a2b'}_secret`} 
+              <input
+                type="text" className="input" readOnly
+                value={`bj_live_gateway_${currentOrg._id || '9a8b7c6d5e4f3a2b'}_secret`}
                 style={{ fontFamily: 'monospace', background: 'var(--bg-surface)', color: 'var(--warning)' }}
               />
               <button className="btn" onClick={() => alert('API Key copied to clipboard!')}>Copy Key</button>
@@ -1261,11 +1404,11 @@ export default function ClientAdminDashboard() {
 
           <h4 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>1. Python / LangChain / OpenAI SDK Drop-in Replacement</h4>
           <pre style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', color: 'var(--text-muted)', overflowX: 'auto', fontSize: '0.9rem', marginBottom: '2rem', fontFamily: 'monospace' }}>
-{`from openai import OpenAI
+            {`from openai import OpenAI
 
 # Simply change the base_url to Binjwa Gateway and pass your API Key!
 client = OpenAI(
-    base_url="http://localhost:8000/gateway/v1",
+    base_url="http://${window.location.hostname}:8000/gateway/v1",
     api_key="bj_live_gateway_secret_key"
 )
 
@@ -1278,8 +1421,8 @@ print(response.choices[0].message.content)`}
 
           <h4 style={{ color: 'var(--text-main)', marginBottom: '1rem' }}>2. Node.js / ElevenLabs Voice AI Agent Webhook</h4>
           <pre style={{ background: 'var(--bg-surface)', padding: '1.25rem', borderRadius: '12px', border: '1px solid var(--border-color)', color: 'var(--text-muted)', overflowX: 'auto', fontSize: '0.9rem', fontFamily: 'monospace' }}>
-{`// Configure your Voice Calling Bot (ElevenLabs / Vobiz / Vapi) to route through Binjwa
-const response = await fetch("http://localhost:8000/gateway/v1/voice/completion", {
+            {`// Configure your Voice Calling Bot (ElevenLabs / Vobiz / Vapi) to route through Binjwa
+const response = await fetch("http://${window.location.hostname}:8000/gateway/v1/voice/completion", {
   method: "POST",
   headers: {
     "Authorization": "Bearer bj_live_gateway_secret_key",
@@ -1314,7 +1457,7 @@ const response = await fetch("http://localhost:8000/gateway/v1/voice/completion"
               <tbody>
                 {employees.length === 0 ? (
                   <tr>
-                    <td colSpan="5" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
+                    <td colSpan="7" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--text-muted)' }}>
                       No employees or agent accounts found. Click "Add Employee / Agent" above.
                     </td>
                   </tr>
@@ -1341,23 +1484,108 @@ const response = await fetch("http://localhost:8000/gateway/v1/voice/completion"
       {showPlanModal && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="card" style={{ width: '100%', maxWidth: '800px', padding: '2rem' }}>
-             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.5rem', color: 'black', margin: 0 }}>Request Budget Refill or Plan Upgrade</h3>
-             </div>
-             <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-                {bundleTiers.map(tier => (
-                   <div key={tier.id} className="card" style={{ textAlign: 'center', padding: '1.5rem', border: `1px solid ${tier.color}` }}>
-                      <h4 style={{ fontSize: '1rem' }}>{tier.name}</h4>
-                      <h3 style={{ fontSize: '1.6rem', margin: '1rem 0', color: tier.color }}>{formatCurrency(tier.price, 0)}</h3>
-                      {dashboardData?.organization?.active_plan === tier.name ? (
-                         <button className="btn" style={{ width: '100%', padding: '0.5rem', background: 'var(--success)', cursor: 'default' }} disabled>Active Plan</button>
-                      ) : (
-                         <button className="btn" style={{ width: '100%', padding: '0.5rem' }} onClick={() => { handleRequestPlan(tier.name, tier.price); setShowPlanModal(false); }}>Request Plan</button>
-                      )}
-                   </div>
-                ))}
-             </div>
-             <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: '2rem' }} onClick={() => setShowPlanModal(false)}>Cancel</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.5rem', color: 'black', margin: 0 }}>Request Budget Refill or Plan Upgrade</h3>
+            </div>
+            <div className="dashboard-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+              {bundleTiers.map(tier => (
+                <div key={tier.id} className="card" style={{ textAlign: 'center', padding: '1.5rem', border: `1px solid ${tier.color}` }}>
+                  <h4 style={{ fontSize: '1rem' }}>{tier.name}</h4>
+                  <h3 style={{ fontSize: '1.6rem', margin: '1rem 0', color: tier.color }}>{formatCurrency(tier.price, 0)}</h3>
+                  {((dashboardData?.organization?.active_plan || '').toUpperCase().includes(tier.name.split(' ')[0].toUpperCase())) ? (
+                    <button className="btn" style={{ width: '100%', padding: '0.5rem', background: 'var(--success)', cursor: 'default' }} disabled>Active Plan</button>
+                  ) : (
+                    <button className="btn" style={{ width: '100%', padding: '0.5rem' }} onClick={() => { 
+                      setPendingPlanTier(tier); 
+                      
+                      const needsSTT = tier.plans.some(p => p.includes('ai_voice') || p.includes('inbound') || p.includes('multilingual'));
+                      const needsTTS = tier.plans.some(p => p.includes('ai_voice') || p.includes('inbound') || p.includes('neural') || p.includes('custom_voice'));
+                      const needsTelecom = tier.plans.some(p => p.includes('ivr') || p.includes('telecom') || p.includes('press_1') || p.includes('recording') || p.includes('ai_voice') || p.includes('inbound'));
+
+                      const topLLM = (vendorData.llmModels || []).find(m => selectedRecommendedModel ? m.name === selectedRecommendedModel : m.is_top);
+                      const topSTT = (vendorData.sttVendors || []).find(v => v.is_top);
+                      const topTTS = (vendorData.ttsVendors || []).find(v => v.is_top);
+                      const topTelecom = (vendorData.telecomVendors || []).find(v => v.is_top);
+
+                      const initialPlatforms = [];
+                      if (topLLM && topLLM.provider) initialPlatforms.push(topLLM.provider);
+                      if (needsSTT && topSTT && topSTT.provider) initialPlatforms.push(topSTT.provider);
+                      if (needsTTS && topTTS && topTTS.provider) initialPlatforms.push(topTTS.provider);
+                      if (needsTelecom && topTelecom && topTelecom.provider) initialPlatforms.push(topTelecom.provider);
+
+                      setSelectedCustomPlatforms([...new Set(initialPlatforms)]);
+                      setShowPlanModal(false); 
+                      setShowCustomizePlanModal(true); 
+                    }}>Request Plan</button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <button type="button" className="btn btn-secondary" style={{ width: '100%', marginTop: '2rem' }} onClick={() => setShowPlanModal(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal for Customize Plan Platforms */}
+      {showCustomizePlanModal && pendingPlanTier && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '600px', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.5rem', color: 'black', margin: 0 }}>Select Plan Platforms</h3>
+            </div>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+              Select the specific platforms you want to include in your <strong>{pendingPlanTier.name}</strong> request. If you leave this empty, default platforms will be allocated.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+              {(() => {
+                const allProviders = new Set();
+                const needsSTT = pendingPlanTier.plans.some(p => p.includes('ai_voice') || p.includes('inbound') || p.includes('multilingual'));
+                const needsTTS = pendingPlanTier.plans.some(p => p.includes('ai_voice') || p.includes('inbound') || p.includes('neural') || p.includes('custom_voice'));
+                const needsTelecom = pendingPlanTier.plans.some(p => p.includes('ivr') || p.includes('telecom') || p.includes('press_1') || p.includes('recording') || p.includes('ai_voice') || p.includes('inbound'));
+
+                (vendorData.llmModels || []).forEach(m => allProviders.add(m.provider));
+                if (needsSTT) (vendorData.sttVendors || []).forEach(v => allProviders.add(v.provider));
+                if (needsTTS) (vendorData.ttsVendors || []).forEach(v => allProviders.add(v.provider));
+                if (needsTelecom) (vendorData.telecomVendors || []).forEach(v => allProviders.add(v.provider));
+                
+                return Array.from(allProviders).map(provider => (
+                  <label key={provider} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', padding: '0.5rem', background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedCustomPlatforms.includes(provider)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCustomPlatforms([...selectedCustomPlatforms, provider]);
+                        } else {
+                          setSelectedCustomPlatforms(selectedCustomPlatforms.filter(p => p !== provider));
+                        }
+                      }}
+                      style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }}
+                    />
+                    <span style={{ fontWeight: 600 }}>{provider}</span>
+                  </label>
+                ));
+              })()}
+            </div>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button 
+                className="btn" 
+                style={{ flex: 1, padding: '0.75rem' }} 
+                onClick={() => {
+                  handleRequestPlan(pendingPlanTier.name, pendingPlanTier.price, selectedCustomPlatforms);
+                  setShowCustomizePlanModal(false);
+                  setPendingPlanTier(null);
+                  setSelectedCustomPlatforms([]);
+                }}
+              >
+                Submit Request
+              </button>
+              <button type="button" className="btn btn-secondary" style={{ flex: 1, padding: '0.75rem' }} onClick={() => {
+                setShowCustomizePlanModal(false);
+                setPendingPlanTier(null);
+                setSelectedCustomPlatforms([]);
+              }}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
@@ -1370,44 +1598,88 @@ const response = await fetch("http://localhost:8000/gateway/v1/voice/completion"
             <form onSubmit={handleAddEmployee}>
               <div className="form-group">
                 <label className="label">Full Name or Agent Name</label>
-                <input 
+                <input
                   type="text" className="input" required placeholder="e.g. Rahul Sharma or Voice Bot #1"
-                  value={empForm.name} onChange={e => setEmpForm({...empForm, name: e.target.value})}
+                  value={empForm.name} onChange={e => setEmpForm({ ...empForm, name: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label className="label">Email Address</label>
-                <input 
+                <input
                   type="email" className="input" required placeholder="employee@company.com"
-                  value={empForm.email} onChange={e => setEmpForm({...empForm, email: e.target.value})}
+                  value={empForm.email} onChange={e => setEmpForm({ ...empForm, email: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label className="label">Phone Number</label>
-                <input 
+                <input
                   type="text" className="input" required placeholder="+91 9876543210"
-                  value={empForm.phone} onChange={e => setEmpForm({...empForm, phone: e.target.value})}
+                  value={empForm.phone} onChange={e => setEmpForm({ ...empForm, phone: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label className="label">Default Password</label>
-                <input 
+                <input
                   type="text" className="input" required
-                  value={empForm.password} onChange={e => setEmpForm({...empForm, password: e.target.value})}
+                  value={empForm.password} onChange={e => setEmpForm({ ...empForm, password: e.target.value })}
                 />
               </div>
               <div className="form-group" style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                <label className="label" style={{ color: 'var(--warning)' }}>Allocate Token Budget</label>
+                <label className="label" style={{ color: 'var(--warning)' }}>Allocate Token Budget ({EXCHANGE_RATES[currency].symbol})</label>
                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>Tokens assigned here will be instantly deducted from your Organization's Available Pool.</p>
-                <input 
+                <input
                   type="number" className="input" required min="0" step="0.01"
-                  value={empForm.allocated_tokens} onChange={e => setEmpForm({...empForm, allocated_tokens: e.target.value})}
+                  value={empForm.allocated_tokens} onChange={e => setEmpForm({ ...empForm, allocated_tokens: e.target.value })}
                   style={{ border: '1px solid var(--warning)' }}
                 />
               </div>
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
                 <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setShowEmpModal(false)}>Cancel</button>
                 <button type="submit" className="btn" style={{ flex: 1 }}>Save Account</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Modal for Adding Tokens */}
+      {showAddTokenModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="card" style={{ width: '100%', maxWidth: '450px', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.25rem', color: 'black', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Plus size={20} color="var(--primary)" /> Add Tokens to Employee
+              </h3>
+              <button onClick={() => { setShowAddTokenModal(false); setAddTokenAmount(0); setSelectedEmpId(null); }} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+            </div>
+            
+            <form onSubmit={handleAddTokens}>
+              {msg.text && (
+                <div style={{ padding: '0.8rem', marginBottom: '1rem', borderRadius: '6px', fontSize: '0.9rem', background: msg.type === 'error' ? '#fee2e2' : '#dcfce7', color: msg.type === 'error' ? '#991b1b' : '#166534', border: msg.type === 'error' ? '1px solid #f87171' : '1px solid #4ade80' }}>
+                  {msg.text}
+                </div>
+              )}
+              <div className="form-group" style={{ marginBottom: '1rem' }}>
+                <label className="label">Target Platform</label>
+                <select className="input" value={selectedTokenPlatform} onChange={e => setSelectedTokenPlatform(e.target.value)}>
+                  {Object.keys(platformsToDisplay).map(platform => (
+                    <option key={platform} value={platform}>{platform} ({formatCurrency(platformsToDisplay[platform], 0)} available)</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ background: 'rgba(245, 158, 11, 0.05)', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
+                <label className="label" style={{ color: 'var(--warning)' }}>Amount to Add ({EXCHANGE_RATES[currency].symbol})</label>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
+                  This amount will be deducted from the Organization's Available balance for the selected platform.
+                </p>
+                <input
+                  type="number" className="input" required min="1" step="1"
+                  value={addTokenAmount} onChange={e => setAddTokenAmount(e.target.value)}
+                  style={{ border: '1px solid var(--warning)' }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => { setShowAddTokenModal(false); setAddTokenAmount(0); setSelectedEmpId(null); }}>Cancel</button>
+                <button type="submit" className="btn" style={{ flex: 1 }}>Confirm Transfer</button>
               </div>
             </form>
           </div>

@@ -17,7 +17,6 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [isSetupMode, setIsSetupMode] = useState(false);
-  const [isSignup, setIsSignup] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [phone, setPhone] = useState('');
   const navigate = useNavigate();
@@ -40,23 +39,26 @@ export default function Login() {
     setLoading(true);
     setError(null);
     try {
-      if (isSignup && activeTab === 'client_admin') {
-        await authAPI.signup(companyName, email, phone, password);
-        setSuccess(true);
-        setError('Signup successful! You can now log in.');
-        setTimeout(() => {
-          setIsSignup(false);
-          setSuccess(false);
-        }, 1500);
-      } else if (isSetupMode) {
-        await authAPI.setupPassword(email, password);
-        setSuccess(true);
-        setTimeout(() => {
-          setIsSetupMode(false);
-          setSuccess(false);
-          setPassword('');
-          setError('Password setup successful! You can now login.');
-        }, 1500);
+      if (isSetupMode) {
+        if (activeTab === 'client_admin' && companyName) {
+          await authAPI.signup(companyName, email, phone, password);
+          setSuccess(true);
+          setTimeout(() => {
+            setIsSetupMode(false);
+            setSuccess(false);
+            setPassword('');
+            setError('Account created successfully! You can now log in.');
+          }, 1500);
+        } else {
+          await authAPI.setupPassword(email, password, companyName, phone);
+          setSuccess(true);
+          setTimeout(() => {
+            setIsSetupMode(false);
+            setSuccess(false);
+            setPassword('');
+            setError('Password setup successful! You can now log in.');
+          }, 1500);
+        }
       } else {
         const res = await authAPI.login(email, password);
         localStorage.setItem('access_token', res.access_token);
@@ -81,7 +83,11 @@ export default function Login() {
         setError('You must setup your password first.');
         setIsSetupMode(true);
       } else {
-        setError(err.message || (isSetupMode ? 'Setup failed.' : 'Login failed. Please check your credentials.'));
+        if (isSetupMode && err.message.includes('Email not found')) {
+          setError("Authentication fail. Mail doesn't added.");
+        } else {
+          setError(err.message || (isSetupMode ? 'Setup failed.' : 'Login failed. Please check your credentials.'));
+        }
       }
     } finally {
       setLoading(false);
@@ -96,7 +102,7 @@ export default function Login() {
           <div style={{ width: 56, height: 56, borderRadius: 16, background: 'linear-gradient(135deg, var(--primary), var(--accent))', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '1rem', boxShadow: '0 8px 20px rgba(99, 102, 241, 0.4)' }}>
             <Zap size={28} />
           </div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em' }}>{isSignup ? "Create Organization" : (isSetupMode ? "Setup Account" : "Welcome Back")}</h2>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.02em' }}>{isSetupMode ? "Setup Account" : "Welcome Back"}</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>Select your role portal and authenticate to continue</p>
         </div>
 
@@ -152,19 +158,19 @@ export default function Login() {
           </div>
         )}
 
-        {activeTab === 'client_admin' && !isSetupMode && (
+        {activeTab === 'client_admin' && (
           <div style={{ display: 'flex', gap: '8px', marginBottom: '1.5rem', justifyContent: 'center' }}>
             <button 
               type="button" 
-              onClick={() => setIsSignup(false)}
-              style={{ padding: '0.5rem 1rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: !isSignup ? 'var(--accent)' : 'transparent', color: !isSignup ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
+              onClick={() => { setIsSetupMode(false); setError(null); }}
+              style={{ padding: '0.5rem 1rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: !isSetupMode ? 'var(--accent)' : 'transparent', color: !isSetupMode ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
             >
               Log In
             </button>
             <button 
               type="button" 
-              onClick={() => setIsSignup(true)}
-              style={{ padding: '0.5rem 1rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: isSignup ? 'var(--accent)' : 'transparent', color: isSignup ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
+              onClick={() => { setIsSetupMode(true); setError(null); }}
+              style={{ padding: '0.5rem 1rem', borderRadius: '20px', border: '1px solid var(--border-color)', background: isSetupMode ? 'var(--accent)' : 'transparent', color: isSetupMode ? 'white' : 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}
             >
               Sign Up
             </button>
@@ -172,17 +178,17 @@ export default function Login() {
         )}
 
         <form onSubmit={handleSubmit}>
-          {isSignup && activeTab === 'client_admin' && (
+          {isSetupMode && activeTab === 'client_admin' && (
             <>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Company Name</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '8px' }}>Organization Name</label>
                 <input 
                   type="text" 
                   style={{ width: '100%', padding: '0.875rem 1rem', borderRadius: '12px', border: '1px solid rgba(99, 102, 241, 0.2)', background: 'rgba(99, 102, 241, 0.02)', color: 'var(--text-main)', fontSize: '1rem', outline: 'none' }}
                   required 
                   value={companyName}
                   onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="Acme Corp"
+                  placeholder="e.g. Acme Corp"
                 />
               </div>
               <div className="form-group" style={{ marginBottom: '1.25rem' }}>
@@ -233,7 +239,7 @@ export default function Login() {
             }} 
             disabled={loading || success}
           >
-            {loading ? 'Authenticating...' : `Access ${activeTab.replace('_', ' ').toUpperCase()} Portal`} <ArrowRight size={18} />
+            {loading ? 'Authenticating...' : (isSetupMode ? `Setup Account` : `Access ${activeTab.replace('_', ' ').toUpperCase()} Portal`)} <ArrowRight size={18} />
           </button>
         </form>
 
